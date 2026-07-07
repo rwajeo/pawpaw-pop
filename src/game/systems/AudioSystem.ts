@@ -60,11 +60,17 @@ export class AudioSystem {
     const context = this.ensureContext();
     if (!context || !this.musicGain || typeof Audio === 'undefined') return undefined;
     if (!this.bgm) {
-      const audio = new Audio('/audio/pawpaw-main.wav');
+      const source = new URL(`${import.meta.env.BASE_URL}audio/pawpaw-main.wav`, window.location.href).href;
+      const audio = new Audio(source);
       audio.loop = true;
       audio.preload = 'auto';
       audio.crossOrigin = 'anonymous';
+      audio.setAttribute('playsinline', '');
       audio.dataset.pawpawBgm = 'true';
+      audio.dataset.playbackState = 'idle';
+      audio.addEventListener('playing', () => { audio.dataset.playbackState = 'playing'; });
+      audio.addEventListener('pause', () => { audio.dataset.playbackState = 'paused'; });
+      audio.addEventListener('error', () => { audio.dataset.playbackState = `media-error-${audio.error?.code ?? 0}`; });
       audio.setAttribute('aria-hidden', 'true');
       audio.style.display = 'none';
       document.body.append(audio);
@@ -123,6 +129,33 @@ export class AudioSystem {
     this.applyVolumes();
     void audio.play().catch(() => undefined);
     return true;
+  }
+
+  /** Starts media playback before the first await so mobile browsers retain the user gesture. */
+  public async resumeAndStartMusic(context: MusicContext = this.musicContext): Promise<boolean> {
+    this.musicContext = context;
+    if (this.settings.muted || !this.settings.musicEnabled) return false;
+    const audioContext = this.ensureContext();
+    const audio = this.ensureBgm();
+    if (!audioContext || !audio) return false;
+    audio.playbackRate = context === 'daily' ? 1.045 : context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
+    this.applyVolumes();
+    audio.dataset.playbackState = 'starting';
+    delete audio.dataset.playbackError;
+    const playback = audio.play().then(() => {
+      audio.dataset.playbackState = 'playing';
+      return true;
+    }).catch((error: unknown) => {
+      audio.dataset.playbackState = 'blocked';
+      audio.dataset.playbackError = error instanceof DOMException ? error.name : 'PlaybackError';
+      return false;
+    });
+    try {
+      if (audioContext.state === 'suspended') await audioContext.resume();
+    } catch {
+      return false;
+    }
+    return (await playback) && audioContext.state === 'running';
   }
 
   public setMusicContext(context: MusicContext): void {

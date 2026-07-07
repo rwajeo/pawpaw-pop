@@ -76,6 +76,7 @@ export class BaseScene extends Phaser.Scene {
     container.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.025, duration: 90 }));
     container.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, y: y, duration: 100 }));
     container.on('pointerdown', () => {
+      void audioSystem.resumeAndStartMusic();
       container.setScale(0.97);
       container.y = y + 7;
     });

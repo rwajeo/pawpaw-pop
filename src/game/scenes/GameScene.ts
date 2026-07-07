@@ -265,7 +265,7 @@ export class GameScene extends BaseScene {
       startY: pointer.worldY,
       position,
     };
-    void audioSystem.resume();
+    void audioSystem.resumeAndStartMusic(this.daily ? 'daily' : 'stage');
   }
 
   private finishBoardPointer(pointer: Phaser.Input.Pointer): void {

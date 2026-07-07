@@ -51,7 +51,7 @@ export class SettingsScene extends BaseScene {
       saveSystem.updateSettings({ [key]: value });
       const settings = saveSystem.getData().settings;
       audioSystem.applySettings(settings);
-      if (settings.musicEnabled && !settings.muted) void audioSystem.resume().then(() => audioSystem.startMusic('menu'));
+      if (settings.musicEnabled && !settings.muted) void audioSystem.resumeAndStartMusic('menu');
       hapticSystem.setEnabled(settings.hapticsEnabled);
       void audioSystem.resume().then(() => audioSystem.playSfx('button'));
     });

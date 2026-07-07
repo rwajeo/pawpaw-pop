@@ -10,8 +10,8 @@ export class MenuScene extends BaseScene {
     this.addBackdrop();
     audioSystem.applySettings(saveSystem.getData().settings);
     audioSystem.setMusicContext('menu');
-    this.input.once('pointerdown', () => void audioSystem.resume().then(() => audioSystem.startMusic('menu')));
-    this.input.keyboard?.once('keydown', () => void audioSystem.resume().then(() => audioSystem.startMusic('menu')));
+    this.input.on('pointerdown', () => void audioSystem.resumeAndStartMusic('menu'));
+    this.input.keyboard?.on('keydown', () => void audioSystem.resumeAndStartMusic('menu'));
     this.cameras.main.fadeIn(220, 255, 248, 232);
 
     this.add.text(GAME_WIDTH / 2, 245, '포포팝!', {

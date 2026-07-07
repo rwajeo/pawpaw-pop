@@ -1,0 +1,58 @@
+:root {
+  font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color: #553d55;
+  background: #fff4df;
+  font-synthesis: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 10%, #fff 0 4%, transparent 4.2%),
+    radial-gradient(circle at 85% 18%, #ffe2dc 0 8%, transparent 8.2%),
+    linear-gradient(160deg, #fff9ea, #e9f7e8 55%, #e8f2ff);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+canvas {
+  display: block;
+  margin: 0 auto;
+  outline: none;
+  touch-action: none;
+}
+
+canvas:focus-visible { outline: 4px solid #6a55a5; outline-offset: -4px; }
+
+.a11y-skip {
+  position: fixed;
+  left: 1rem;
+  top: -5rem;
+  z-index: 10;
+  padding: .8rem 1rem;
+  border-radius: 999px;
+  background: #4c3d67;
+  color: white;
+}
+
+.a11y-skip:focus { top: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

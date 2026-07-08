@@ -202,22 +202,16 @@ export class Tile extends Phaser.GameObjects.Container {
 
   private drawFrame(): void {
     const half = this.tileSize / 2;
-    this.shadow.clear()
-      .fillStyle(0x493a62, 0.2).fillEllipse(0, half * 0.69, this.tileSize * 0.68, this.tileSize * 0.18);
-    this.frame.clear()
-      .fillStyle(0xffffff, 0.1).fillCircle(0, -2, this.tileSize * 0.42)
-      .lineStyle(2, 0xffffff, 0.16).strokeCircle(0, -2, this.tileSize * 0.4);
+    this.shadow.clear();
+    this.frame.clear();
     this.selectionRing.clear();
     if (this.selected) {
       this.selectionRing
-        .fillStyle(0xffd34e, 0.2).fillCircle(0, -2, half - 1)
-        .lineStyle(Math.max(4, this.tileSize * 0.055), 0xffd34e, 1).strokeCircle(0, -2, half - 3)
-        .lineStyle(2, 0xffffff, 0.95).strokeCircle(0, -2, half - 8)
-        .fillStyle(0xffee85, 1)
-        .fillCircle(0, -half + 1, 4)
-        .fillCircle(half - 2, -2, 3.5)
-        .fillCircle(0, half - 5, 3)
-        .fillCircle(-half + 2, -2, 3.5);
+        .lineStyle(7, 0xffd45f, 0.95).lineBetween(-22, half - 3, 22, half - 3)
+        .lineStyle(2, 0xffffff, 0.9).lineBetween(-16, half - 8, 16, half - 8)
+        .fillStyle(0xffec9b, 1)
+        .fillCircle(-28, half - 3, 4)
+        .fillCircle(28, half - 3, 4);
     }
   }
 

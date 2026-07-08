@@ -9,7 +9,7 @@ import { ParticlePool } from '../entities/ParticlePool';
 import { Tile as TileView, type TileSpecial } from '../entities/Tile';
 import { achievementSystem } from '../systems/AchievementSystem';
 import { audioSystem } from '../systems/AudioSystem';
-import { GoalSystem, type GoalProgress } from '../systems/GoalSystem';
+import { GoalSystem } from '../systems/GoalSystem';
 import { hapticSystem } from '../systems/HapticSystem';
 import { saveSystem } from '../systems/SaveSystem';
 import type { Difficulty, ObstacleType, SpecialTileType, StageDefinition } from '../types';
@@ -18,14 +18,13 @@ import { BaseScene } from './BaseScene';
 
 interface GameData { difficulty?: Difficulty; }
 interface RuntimeObstacle { type: ObstacleType; row: number; col: number; hp: number; view?: Phaser.GameObjects.Container; }
-type BoosterMode = 'hammer' | 'paw' | null;
 
-const BOARD_X = 76;
-const BOARD_Y = 280;
-const CELL = 116;
+const BOARD_X = 24;
+const BOARD_Y = 205;
+const CELL = 129;
 const BOARD_PIXELS = CELL * 8;
-const TILE_SIZE = 110;
-const STATUS_Y = 258;
+const TILE_SIZE = 122;
+const STATUS_Y = 200;
 const keyOf = ({ row, col }: Position): string => `${row}:${col}`;
 
 export class GameScene extends BaseScene {
@@ -51,13 +50,11 @@ export class GameScene extends BaseScene {
   private secondsLeft = 0;
   private timeAwardedThisMove = false;
   private bestCombo = 0;
-  private boosterMode: BoosterMode = null;
+  private shufflesLeft = 2;
+  private shuffleButton?: Phaser.GameObjects.Container;
   private scoreText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private timeBar!: Phaser.GameObjects.Graphics;
-  private goalText!: Phaser.GameObjects.Text;
-  private comboText!: Phaser.GameObjects.Text;
-  private comboBar!: Phaser.GameObjects.Graphics;
   private statusText!: Phaser.GameObjects.Text;
   private statusPlate!: Phaser.GameObjects.Graphics;
   private particlePool!: ParticlePool;
@@ -71,7 +68,7 @@ export class GameScene extends BaseScene {
   }
 
   public create(): void {
-    this.addBackdrop(0xc9e9ff);
+    this.addPremiumBackdrop(0x6555c9);
     this.cameras.main.fadeIn(180, 255, 248, 232);
     this.stage = createDifficultyChallenge(this.difficulty);
     this.stageId = this.stage.id;
@@ -84,6 +81,8 @@ export class GameScene extends BaseScene {
     this.timeAwardedThisMove = false;
     this.score = 0;
     this.bestCombo = 0;
+    this.shufflesLeft = 2;
+    this.shuffleButton = undefined;
     this.locked = false;
     this.paused = false;
     this.ending = false;
@@ -102,7 +101,7 @@ export class GameScene extends BaseScene {
     this.createObstacles();
     this.displayBoard(this.model.board, true);
     this.createBoardInput();
-    this.createBoosters();
+    this.createShuffleButton();
     this.bindKeyboard();
     this.startTimerIfNeeded();
     this.showTutorialIfNeeded();
@@ -118,54 +117,61 @@ export class GameScene extends BaseScene {
 
   private createHud(): void {
     const shell = this.add.graphics();
-    shell.fillStyle(0x4d3d61, 0.14).fillRoundedRect(24, 25, 1032, 220, 42);
-    shell.fillStyle(0xffffff, 0.91).lineStyle(4, 0xffffff, 0.9)
-      .fillRoundedRect(24, 14, 1032, 220, 42).strokeRoundedRect(24, 14, 1032, 220, 42);
-    shell.fillStyle(0xff7890, 0.09).fillRoundedRect(132, 31, 270, 88, 28);
-    shell.fillStyle(0x7659a7, 0.08).fillRoundedRect(420, 31, 260, 88, 28);
-    shell.fillStyle(0x67bda0, 0.1).fillRoundedRect(40, 133, 920, 72, 25);
-    this.add.text(150, 39, this.difficulty.replace(/([A-Z])/g, ' $1').toUpperCase(), {
-      fontFamily: DISPLAY_FONT, fontSize: '18px', fontStyle: 'bold', color: '#a85d74',
+    shell.fillStyle(0x070611, 0.42).fillRoundedRect(20, 25, 1040, 142, 36);
+    shell.fillGradientStyle(0x30294f, 0x262744, 0x1e3449, 0x24243e, 0.98).lineStyle(3, 0xffffff, 0.14)
+      .fillRoundedRect(20, 14, 1040, 142, 36).strokeRoundedRect(20, 14, 1040, 142, 36);
+    shell.fillStyle(0xff6d91, 0.11).fillRoundedRect(134, 29, 270, 106, 26);
+    shell.fillStyle(0x7468ff, 0.1).fillRoundedRect(422, 29, 614, 106, 26);
+    this.add.text(154, 37, this.difficulty.replace(/([A-Z])/g, ' $1').toUpperCase(), {
+      fontFamily: DISPLAY_FONT, fontSize: '18px', fontStyle: 'bold', color: '#ff9bb5',
     });
-    this.timeText = this.add.text(150, 67, '', {
-      fontFamily: DISPLAY_FONT, fontSize: '34px', fontStyle: 'bold', color: '#513d60',
+    this.timeText = this.add.text(154, 65, '', {
+      fontFamily: DISPLAY_FONT, fontSize: '42px', fontStyle: 'bold', color: '#ffffff',
     });
     this.timeBar = this.add.graphics();
-    this.scoreText = this.add.text(550, 80, '0', {
-      fontFamily: DISPLAY_FONT, fontSize: '52px', fontStyle: 'bold', color: '#4e3b58',
-    }).setOrigin(0.5).setShadow(0, 4, '#ffffff', 4);
-    this.add.text(550, 43, 'SCORE', { fontFamily: DISPLAY_FONT, fontSize: '17px', fontStyle: 'bold', color: '#9a849e' }).setOrigin(0.5).setLetterSpacing(2);
-    this.goalText = this.add.text(500, 169, '', {
-      fontFamily: UI_FONT, fontSize: '23px', fontStyle: 'bold', color: '#5b4963', align: 'center', wordWrap: { width: 860 },
-    }).setOrigin(0.5).setShadow(0, 2, '#ffffff', 2);
-    this.comboBar = this.add.graphics();
-    this.comboText = this.add.text(835, 83, '', {
-      fontFamily: DISPLAY_FONT, fontSize: '23px', fontStyle: 'bold', color: '#806c83',
-    }).setOrigin(0.5);
+    this.scoreText = this.add.text(755, 92, '0', {
+      fontFamily: DISPLAY_FONT, fontSize: '76px', fontStyle: 'bold', color: '#ffffff',
+    }).setOrigin(0.5).setShadow(0, 7, '#131027', 10, true, true).setLetterSpacing(-2);
+    this.add.text(755, 42, 'SCORE', { fontFamily: DISPLAY_FONT, fontSize: '18px', fontStyle: 'bold', color: '#b9b4d4' }).setOrigin(0.5).setLetterSpacing(3);
     this.statusPlate = this.add.graphics().setDepth(99).setVisible(false);
     this.statusText = this.add.text(540, STATUS_Y, '', {
       fontFamily: UI_FONT, fontSize: '42px', fontStyle: 'bold', color: '#ffffff',
       stroke: '#5e3d69', strokeThickness: 9,
     }).setOrigin(0.5).setDepth(100).setShadow(0, 7, '#4a304f', 8, true, true);
-    this.addButton(76, 76, '⌂', () => { if (!this.tutorialActive) this.togglePause(); }, {
-      width: 82, height: 82, color: 0xffffff, color2: 0xfff1e7, textColor: '#5d416b', fontSize: 43,
-    });
+    this.createHomeButton();
     this.refreshHud();
+  }
+
+  private createHomeButton(): void {
+    const root = this.add.container(74, 84);
+    const shadow = this.add.graphics().fillStyle(0x06050f, 0.5).fillCircle(0, 7, 49);
+    const halo = this.add.graphics().fillStyle(0x8175ff, 0.16).fillCircle(0, 0, 53);
+    const plate = this.add.graphics()
+      .fillGradientStyle(0x7668ec, 0x5c72d8, 0x3f7fae, 0x514db0, 1)
+      .lineStyle(3, 0xffffff, 0.34).fillCircle(0, 0, 47).strokeCircle(0, 0, 47);
+    const icon = this.add.graphics()
+      .fillStyle(0xffffff, 1).fillTriangle(-23, -4, 0, -27, 23, -4)
+      .fillRoundedRect(-18, -5, 36, 30, 6)
+      .fillStyle(0x4c4e9d, 0.65).fillRoundedRect(-5, 10, 10, 15, 3);
+    root.add([shadow, halo, plate, icon]);
+    root.setSize(124, 124).setInteractive({ useHandCursor: true });
+    root.on('pointerover', () => this.tweens.add({ targets: root, scale: 1.06, duration: 90 }));
+    root.on('pointerout', () => this.tweens.add({ targets: root, scale: 1, duration: 100 }));
+    root.on('pointerdown', () => root.setScale(0.94));
+    root.on('pointerup', () => {
+      root.setScale(1);
+      void audioSystem.resume().then(() => audioSystem.playSfx('button'));
+      if (!this.tutorialActive) this.togglePause();
+    });
   }
 
   private createBoardFrame(): void {
     const frame = this.add.graphics();
-    frame.fillStyle(0x41344f, 0.2).fillRoundedRect(BOARD_X - 22, BOARD_Y - 1, BOARD_PIXELS + 44, BOARD_PIXELS + 44, 48);
-    frame.fillGradientStyle(0x8c78a5, 0x8c78a5, 0x6d668a, 0x6d668a, 0.96)
-      .lineStyle(6, 0xffffff, 0.82)
-      .fillRoundedRect(BOARD_X - 16, BOARD_Y - 16, BOARD_PIXELS + 32, BOARD_PIXELS + 32, 44)
-      .strokeRoundedRect(BOARD_X - 16, BOARD_Y - 16, BOARD_PIXELS + 32, BOARD_PIXELS + 32, 44);
-    for (let row = 0; row < 8; row += 1) {
-      for (let col = 0; col < 8; col += 1) {
-        frame.fillStyle((row + col) % 2 === 0 ? 0xffffff : 0xece6f3, (row + col) % 2 === 0 ? 0.14 : 0.09)
-          .fillCircle(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, CELL * 0.43);
-      }
-    }
+    frame.fillStyle(0x05040d, 0.46).fillRoundedRect(BOARD_X - 22, BOARD_Y - 1, BOARD_PIXELS + 44, BOARD_PIXELS + 44, 42);
+    frame.fillGradientStyle(0x4d416e, 0x403c63, 0x333b58, 0x3c3659, 0.98)
+      .lineStyle(5, 0xffffff, 0.24)
+      .fillRoundedRect(BOARD_X - 16, BOARD_Y - 16, BOARD_PIXELS + 32, BOARD_PIXELS + 32, 38)
+      .strokeRoundedRect(BOARD_X - 16, BOARD_Y - 16, BOARD_PIXELS + 32, BOARD_PIXELS + 32, 38);
     this.boardLayer = this.add.container(BOARD_X, BOARD_Y);
     this.obstacleLayer = this.add.container(BOARD_X, BOARD_Y).setDepth(30);
   }
@@ -310,7 +316,6 @@ export class GameScene extends BaseScene {
 
   private handleTap(position: Position): void {
     this.keyboardFocusVisible = false;
-    if (this.boosterMode) { this.useTargetedBooster(position); return; }
     audioSystem.playSfx('select');
     hapticSystem.play('tap');
     if (!this.selected) {
@@ -372,6 +377,13 @@ export class GameScene extends BaseScene {
       return;
     }
 
+    // The visual tiles have already traded places. Keep the position map in
+    // sync so the character that completed the match receives the pop motion.
+    this.views.set(keyOf(from), toView);
+    this.views.set(keyOf(to), fromView);
+    fromView.setDepth(0);
+    toView.setDepth(0);
+
     const swappedSpecials = [originalBoard[from.row]?.[from.col]?.special, originalBoard[to.row]?.[to.col]?.special];
     const swapImpact = swappedSpecials.includes('rainbow') ? 'rainbow'
       : swappedSpecials.includes('bomb') ? 'bomb'
@@ -396,7 +408,7 @@ export class GameScene extends BaseScene {
     result.cascades.forEach((step) => step.removed.forEach((position) => affectedColumns.add(position.col)));
     this.displayBoardColumns(result.board, affectedColumns, true);
     this.refreshObstacles();
-    this.refreshHud(cascade);
+    this.refreshHud();
     if (result.reshuffled) this.flashStatus('움직임이 없어 자동으로 섞었어요!');
     this.locked = false;
     this.checkEnd();
@@ -688,51 +700,29 @@ export class GameScene extends BaseScene {
     this.refreshObstacles();
   }
 
-  private createBoosters(): void {
-    const y = 1335;
-    const data = saveSystem.getData();
-    this.addButton(230, y, `셔플  ${data.items.shuffle}`, () => this.useShuffle(), { width: 275, height: 100, color: 0x68bba0, fontSize: 28, icon: '⟳' });
-    this.addButton(540, y, `망치  ${data.items.hammer}`, () => this.setBooster('hammer'), { width: 275, height: 100, color: 0xef9c63, fontSize: 28, icon: '◆' });
-    this.addButton(850, y, `포포  ${data.items.paw}`, () => this.setBooster('paw'), { width: 275, height: 100, color: 0x8c72bd, fontSize: 28, icon: '✦' });
+  private createShuffleButton(): void {
+    const y = BOARD_Y + BOARD_PIXELS + 108;
+    this.shuffleButton = this.addButton(540, y, '보드 섞기  ·  2회', () => this.useShuffle(), {
+      width: 520, height: 104, color: 0x28bfa6, color2: 0x3b7be2, fontSize: 31,
+    });
   }
 
   private useShuffle(): void {
-    const inventory = saveSystem.getData().items;
-    if (this.locked || inventory.shuffle <= 0) { this.flashStatus('셔플 아이템이 없어요'); return; }
-    saveSystem.changeItem('shuffle', -1);
+    if (this.locked || this.paused || this.ending) return;
+    if (this.shufflesLeft <= 0) { this.flashStatus('이번 게임의 셔플을 모두 사용했어요'); return; }
+    this.shufflesLeft -= 1;
+    this.updateShuffleButton();
     this.displayBoard(this.model.reshuffle(), true);
     audioSystem.playSfx('swap');
-    this.flashStatus('보드를 새롭게 섞었어요!');
+    this.flashStatus(this.shufflesLeft > 0 ? '새 보드! 셔플이 1회 남았어요' : '마지막 셔플을 사용했어요');
   }
 
-  private setBooster(mode: Exclude<BoosterMode, null>): void {
-    if (this.locked || this.paused || this.ending) return;
-    const inventory = saveSystem.getData().items;
-    if (inventory[mode] <= 0) { this.flashStatus('아이템이 없어요'); return; }
-    this.boosterMode = this.boosterMode === mode ? null : mode;
-    this.flashStatus(this.boosterMode ? (mode === 'hammer' ? '부술 장애물을 골라 주세요' : '지울 친구를 골라 주세요') : '아이템 선택 취소');
-  }
-
-  private useTargetedBooster(position: Position): void {
-    const mode = this.boosterMode;
-    this.boosterMode = null;
-    if (!mode) return;
-    if (mode === 'hammer') {
-      const obstacle = this.obstacles.find((item) => item.hp > 0 && item.row === position.row && item.col === position.col);
-      if (!obstacle) { this.flashStatus('이 칸에는 장애물이 없어요'); return; }
-      obstacle.hp = 0;
-      if (obstacle.type === 'starShard') this.goals.apply({ type: 'starDrop' });
-      else this.goals.apply({ type: 'obstacle', obstacle: obstacle.type });
-      saveSystem.changeItem('hammer', -1);
-      this.refreshObstacles();
-      audioSystem.playSfx('obstacle');
-    } else {
-      this.displayBoardColumns(this.model.removePositions([position]), new Set([position.col]), true);
-      saveSystem.changeItem('paw', -1);
-      audioSystem.playSfx('rainbow');
-    }
-    this.refreshHud();
-    this.checkEnd();
+  private updateShuffleButton(): void {
+    const button = this.shuffleButton;
+    const label = button?.getData('label') as Phaser.GameObjects.Text | undefined;
+    if (!button || !label) return;
+    label.setText(this.shufflesLeft > 0 ? `보드 섞기  ·  ${this.shufflesLeft}회` : '셔플 사용 완료');
+    if (this.shufflesLeft <= 0) button.disableInteractive().setAlpha(0.48);
   }
 
   private bindKeyboard(): void {
@@ -777,24 +767,16 @@ export class GameScene extends BaseScene {
     } });
   }
 
-  private refreshHud(combo = 0): void {
+  private refreshHud(): void {
     this.scoreText.setText(this.score.toLocaleString('ko-KR'));
     const safeSeconds = Math.max(0, this.secondsLeft);
     this.timeText.setText(this.formatTime(safeSeconds));
     const ratio = Phaser.Math.Clamp(safeSeconds / Math.max(1, this.stage.timeLimit ?? 1), 0, 1);
     const barColor = safeSeconds <= 10 ? 0xff5577 : safeSeconds <= 30 ? 0xffa349 : 0x5fcf9f;
     this.timeBar.clear()
-      .fillStyle(0x513b59, 0.12).fillRoundedRect(150, 106, 230, 9, 5)
-      .fillStyle(barColor, 1).fillRoundedRect(150, 106, Math.max(5, 230 * ratio), 9, 5);
-    this.timeText.setColor(safeSeconds <= 10 ? '#d94363' : '#513d60');
-    this.goalText.setText(this.goals.progress.map((progress) => this.describeGoal(progress)).join('  ·  '));
-    this.comboText.setText(combo > 1 ? `${combo} COMBO` : '');
-    this.comboBar.clear();
-    if (combo > 0) {
-      this.comboBar.fillStyle(0x5a4867, 0.13).fillRoundedRect(685, 112, 210, 12, 6);
-      this.comboBar.fillGradientStyle(combo >= 5 ? 0xffcf4f : 0xff8da2, combo >= 5 ? 0xffef9b : 0xffb3ca, 0xff6f91, 0xff91c6, 1)
-        .fillRoundedRect(685, 112, 210 * Math.min(1, combo / 10), 12, 6);
-    }
+      .fillStyle(0xffffff, 0.12).fillRoundedRect(154, 122, 222, 9, 5)
+      .fillStyle(barColor, 1).fillRoundedRect(154, 122, Math.max(5, 222 * ratio), 9, 5);
+    this.timeText.setColor(safeSeconds <= 10 ? '#ff6687' : safeSeconds <= 30 ? '#ffc65f' : '#ffffff');
   }
 
   private formatTime(seconds: number): string {
@@ -822,19 +804,9 @@ export class GameScene extends BaseScene {
     this.refreshHud();
   }
 
-  private describeGoal(progress: GoalProgress): string {
-    const goal = progress.goal;
-    const ratio = `${progress.current}/${progress.target}`;
-    if (goal.type === 'score') return `점수 ${ratio}`;
-    if (goal.type === 'collect') return `${CHARACTERS.find((character) => character.id === goal.characterId)?.name ?? '친구'} ${ratio}`;
-    if (goal.type === 'obstacle') return `${goal.obstacle === 'woodCrate' ? '상자' : goal.obstacle === 'jelly' ? '젤리' : '돌'} ${ratio}`;
-    if (goal.type === 'starDrop') return `별 조각 ${ratio}`;
-    return `특수 블록 ${ratio}`;
-  }
-
   private checkEnd(): void {
     if (this.ending) return;
-    if (this.secondsLeft <= 0) this.finish(this.goals.isComplete || this.score >= this.stage.starThresholds[0]);
+    if (this.secondsLeft <= 0) this.finish(true);
   }
 
   private finish(success: boolean): void {
@@ -868,7 +840,7 @@ export class GameScene extends BaseScene {
       [shade, panel, title, resume, quit].forEach((item) => item.destroy());
       this.resumeCountdown();
     }, { width: 560, color: 0x62b997 }).setDepth(1002);
-    const quit = this.addButton(540, 1090, '홈 화면으로', () => this.fadeTo('MenuScene'), { width: 560, color: 0x7659a7, icon: '⌂' }).setDepth(1002);
+    const quit = this.addButton(540, 1090, '홈 화면으로', () => this.fadeTo('MenuScene'), { width: 560, color: 0x7659a7 }).setDepth(1002);
   }
 
   private resumeCountdown(): void {
@@ -915,8 +887,15 @@ export class GameScene extends BaseScene {
     this.statusText.setText(message).setFontSize(impact ? 64 : 40).setAlpha(1).setScale(impact ? 0.55 : 0.78).setAngle(impact ? -2 : 0);
     this.tweens.killTweensOf(this.statusText);
     this.tweens.killTweensOf(this.statusPlate);
-    this.tweens.add({ targets: this.statusText, scale: impact ? 1.08 : 1, angle: 0, duration: 150, ease: 'Back.Out', hold: impact ? 650 : 520, alpha: 0, onComplete: () => this.statusText.setText('') });
-    this.tweens.add({ targets: this.statusPlate, alpha: 0, duration: 220, delay: impact ? 670 : 540, onComplete: () => this.statusPlate.setVisible(false) });
+    this.tweens.add({ targets: this.statusText, scale: impact ? 1.08 : 1, angle: 0, duration: 150, ease: 'Back.Out' });
+    this.tweens.add({
+      targets: this.statusText,
+      alpha: 0,
+      duration: 220,
+      delay: impact ? 850 : 620,
+      onComplete: () => this.statusText.setText(''),
+    });
+    this.tweens.add({ targets: this.statusPlate, alpha: 0, duration: 220, delay: impact ? 870 : 640, onComplete: () => this.statusPlate.setVisible(false) });
   }
 
   private toGoalSpecial(value: 'row' | 'column' | 'bomb' | 'rainbow'): SpecialTileType {

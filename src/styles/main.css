@@ -1,7 +1,7 @@
 :root {
   font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   color: #553d55;
-  background: #fff4df;
+  background: #15162d;
   font-synthesis: none;
   touch-action: none;
   user-select: none;
@@ -21,9 +21,9 @@ html, body, #app {
 
 body {
   background:
-    radial-gradient(circle at 15% 10%, #fff 0 4%, transparent 4.2%),
-    radial-gradient(circle at 85% 18%, #ffe2dc 0 8%, transparent 8.2%),
-    linear-gradient(160deg, #fff9ea, #e9f7e8 55%, #e8f2ff);
+    radial-gradient(circle at 12% 12%, rgba(118, 100, 255, .2), transparent 26%),
+    radial-gradient(circle at 88% 84%, rgba(33, 169, 180, .16), transparent 30%),
+    linear-gradient(160deg, #241b42, #102b3d 58%, #17172e);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 

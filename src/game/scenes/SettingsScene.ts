@@ -1,5 +1,5 @@
 import { BaseScene } from './BaseScene';
-import { GAME_WIDTH } from '../constants';
+import { GAME_WIDTH, UI_FONT } from '../constants';
 import { saveSystem } from '../systems/SaveSystem';
 import { audioSystem } from '../systems/AudioSystem';
 import { hapticSystem } from '../systems/HapticSystem';
@@ -19,7 +19,7 @@ export class SettingsScene extends BaseScene {
     const items: Array<{ key: keyof Pick<GameSettings, 'muted' | 'soundEnabled' | 'musicEnabled' | 'hapticsEnabled' | 'screenShake' | 'reducedParticles' | 'reducedMotion'>; label: string; description: string }> = [
       { key: 'muted', label: '전체 음소거', description: '모든 소리를 한 번에 끕니다' },
       { key: 'soundEnabled', label: '효과음', description: '팡팡 터지는 소리를 재생합니다' },
-      { key: 'musicEnabled', label: '배경 음악', description: '코드로 만든 밝은 음악을 재생합니다' },
+      { key: 'musicEnabled', label: '배경 음악', description: '게임 음악을 재생합니다' },
       { key: 'hapticsEnabled', label: '진동', description: '지원 기기에서 손맛을 더합니다' },
       { key: 'screenShake', label: '화면 흔들림', description: '특수 블록의 타격감을 표현합니다' },
       { key: 'reducedParticles', label: '파티클 줄이기', description: '터지는 장식 효과를 줄입니다' },
@@ -35,8 +35,8 @@ export class SettingsScene extends BaseScene {
     let value = initial;
     const group = this.add.container(x, y);
     const panel = this.add.graphics().fillStyle(0xffffff, 0.84).fillRoundedRect(-430, -62, 860, 124, 34);
-    const name = this.add.text(-385, -35, label, { fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '35px', fontStyle: 'bold', color: '#513b59' });
-    const help = this.add.text(-385, 15, description, { fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '22px', color: '#857286' });
+    const name = this.add.text(-385, -35, label, { fontFamily: UI_FONT, fontSize: '35px', fontStyle: 'bold', color: '#513b59' });
+    const help = this.add.text(-385, 15, description, { fontFamily: UI_FONT, fontSize: '22px', fontStyle: 'bold', color: '#857286' });
     const track = this.add.graphics();
     const knob = this.add.circle(0, 0, 23, 0xffffff);
     const redraw = (): void => {
@@ -60,7 +60,7 @@ export class SettingsScene extends BaseScene {
   private confirmReset(): void {
     const shade = this.add.rectangle(540, 960, 1080, 1920, 0x3f3248, 0.65).setInteractive();
     const panel = this.add.graphics().fillStyle(0xfffbf1).fillRoundedRect(120, 660, 840, 540, 52);
-    const copy = this.add.text(540, 800, '모든 게임 기록과\n설정을 초기화할까요?', { fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '44px', fontStyle: 'bold', color: '#513b59', align: 'center' }).setOrigin(0.5);
+    const copy = this.add.text(540, 800, '모든 게임 기록과\n설정을 초기화할까요?', { fontFamily: UI_FONT, fontSize: '44px', fontStyle: 'bold', color: '#513b59', align: 'center' }).setOrigin(0.5);
     const cancel = this.addButton(370, 1070, '취소', () => [shade, panel, copy, cancel, reset].forEach((item) => item.destroy()), { width: 320, color: 0xc7bdc9, fontSize: 32 });
     const reset = this.addButton(710, 1070, '초기화', () => { saveSystem.reset(); this.fadeTo('MenuScene'); }, { width: 320, color: 0xdb6674, fontSize: 32 });
   }

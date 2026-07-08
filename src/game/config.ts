@@ -16,7 +16,7 @@ export const createGameConfig = (): Phaser.Types.Core.GameConfig => ({
   scene: [BootScene, MenuScene, StageSelectScene, GameScene, ResultScene, SettingsScene],
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
   },

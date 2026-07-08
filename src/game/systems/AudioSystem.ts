@@ -5,7 +5,7 @@ export type SfxName =
   | 'bomb' | 'rocket' | 'rainbow' | 'obstacle' | 'combo'
   | 'success' | 'failure' | 'star';
 
-export type MusicContext = 'menu' | 'stage' | 'daily' | 'result';
+export type MusicContext = 'menu' | 'stage' | 'result';
 
 const DEFAULT_AUDIO_SETTINGS: Pick<GameSettings, 'masterVolume' | 'sfxVolume' | 'musicVolume' | 'muted' | 'soundEnabled' | 'musicEnabled'> = {
   masterVolume: 0.8,
@@ -125,7 +125,7 @@ export class AudioSystem {
     const audioContext = this.ensureContext();
     const audio = this.ensureBgm();
     if (!audioContext || audioContext.state !== 'running' || !audio) return false;
-    audio.playbackRate = context === 'daily' ? 1.045 : context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
+    audio.playbackRate = context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
     this.applyVolumes();
     void audio.play().catch(() => undefined);
     return true;
@@ -138,7 +138,7 @@ export class AudioSystem {
     const audioContext = this.ensureContext();
     const audio = this.ensureBgm();
     if (!audioContext || !audio) return false;
-    audio.playbackRate = context === 'daily' ? 1.045 : context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
+    audio.playbackRate = context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
     this.applyVolumes();
     audio.dataset.playbackState = 'starting';
     delete audio.dataset.playbackError;
@@ -160,7 +160,7 @@ export class AudioSystem {
 
   public setMusicContext(context: MusicContext): void {
     this.musicContext = context;
-    if (this.bgm) this.bgm.playbackRate = context === 'daily' ? 1.045 : context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
+    if (this.bgm) this.bgm.playbackRate = context === 'menu' ? 0.975 : context === 'result' ? 0.94 : 1;
     this.applyVolumes();
   }
 

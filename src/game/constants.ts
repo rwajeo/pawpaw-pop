@@ -4,6 +4,9 @@ export const BOARD_SIZE = 8;
 export const BOARD_PIXELS = 816;
 export const TILE_SIZE = BOARD_PIXELS / BOARD_SIZE;
 
+export const UI_FONT = 'Pretendard, SUIT, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+export const DISPLAY_FONT = 'Pretendard, SUIT, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+
 export const COLORS = {
   ink: 0x513b59,
   cream: 0xfff6e6,

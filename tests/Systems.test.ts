@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDifficultyChallenge, DIFFICULTY_OPTIONS } from '../src/game/data/difficulties';
-import { getDailyChallenge } from '../src/game/data/stages';
 import { SaveSystem } from '../src/game/systems/SaveSystem';
 import { ScoreSystem } from '../src/game/systems/ScoreSystem';
 
@@ -33,13 +32,10 @@ describe('systems and data', () => {
     const veryHard = createDifficultyChallenge('veryHard', 'hard-check');
     expect(easy.characterPool).toHaveLength(4);
     expect(veryHard.characterPool).toHaveLength(7);
-    expect(veryHard.moves).toBeLessThan(easy.moves ?? 0);
+    expect(veryHard.timeLimit).toBeLessThan(easy.timeLimit ?? 0);
+    expect(easy.moves).toBeUndefined();
+    expect(veryHard.moves).toBeUndefined();
     expect(veryHard.obstacles.length).toBeGreaterThan(0);
-  });
-
-  it('creates the same daily challenge for the same date', () => {
-    expect(getDailyChallenge('2026-07-07')).toEqual(getDailyChallenge('2026-07-07'));
-    expect(getDailyChallenge('2026-07-07').seed).not.toBe(getDailyChallenge('2026-07-08').seed);
   });
 
   it('recovers safely from corrupt save data', () => {

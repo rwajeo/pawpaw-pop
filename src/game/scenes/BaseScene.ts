@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../constants';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, UI_FONT } from '../constants';
 import { audioSystem } from '../systems/AudioSystem';
 
 export interface ButtonOptions {
   width?: number;
   height?: number;
   color?: number;
+  color2?: number;
   textColor?: string;
   fontSize?: number;
   icon?: string;
@@ -40,7 +41,7 @@ export class BaseScene extends Phaser.Scene {
     bar.fillStyle(0xffffff, 0.9).lineStyle(4, 0xffffff, 0.9)
       .fillRoundedRect(22, 14, GAME_WIDTH - 44, 158, 46).strokeRoundedRect(22, 14, GAME_WIDTH - 44, 158, 46);
     this.add.text(GAME_WIDTH / 2, 100, title, {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif',
+      fontFamily: UI_FONT,
       fontSize: '54px',
       fontStyle: 'bold',
       color: '#513b59',
@@ -58,19 +59,27 @@ export class BaseScene extends Phaser.Scene {
     const width = options.width ?? 620;
     const height = options.height ?? 118;
     const container = this.add.container(x, y);
-    const shadow = this.add.graphics().fillStyle(0x523d5d, 0.18).fillRoundedRect(-width / 2, -height / 2 + 10, width, height, 32);
-    const plate = this.add.graphics().fillStyle(options.color ?? COLORS.coral, 1)
-      .lineStyle(5, 0xffffff, 0.68).fillRoundedRect(-width / 2, -height / 2, width, height, 32)
-      .strokeRoundedRect(-width / 2, -height / 2, width, height, 32);
-    plate.fillStyle(0xffffff, 0.13).fillRoundedRect(-width / 2 + 8, -height / 2 + 8, width - 16, Math.max(22, height * 0.42), 25);
+    const radius = Math.min(38, height * 0.32);
+    const topColor = options.color ?? COLORS.coral;
+    const bottomColor = options.color2 ?? topColor;
+    const shadow = this.add.graphics()
+      .fillStyle(0x3f2e4c, 0.2).fillRoundedRect(-width / 2, -height / 2 + 14, width, height, radius)
+      .fillStyle(0xffffff, 0.34).fillRoundedRect(-width / 2 + 14, height / 2 + 6, width - 28, 5, 3);
+    const plate = this.add.graphics()
+      .fillGradientStyle(topColor, topColor, bottomColor, bottomColor, 1)
+      .lineStyle(4, 0xffffff, 0.82).fillRoundedRect(-width / 2, -height / 2, width, height, radius)
+      .strokeRoundedRect(-width / 2, -height / 2, width, height, radius)
+      .lineStyle(2, 0x4d3658, 0.12).strokeRoundedRect(-width / 2 + 7, -height / 2 + 7, width - 14, height - 14, radius - 5);
+    plate.fillStyle(0xffffff, 0.16).fillRoundedRect(-width / 2 + 10, -height / 2 + 9, width - 20, Math.max(20, height * 0.34), radius - 7);
     const text = this.add.text(0, -2, `${options.icon ? `${options.icon}  ` : ''}${label}`, {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif',
+      fontFamily: UI_FONT,
       fontSize: `${options.fontSize ?? 38}px`,
       fontStyle: 'bold',
       color: options.textColor ?? '#ffffff',
       align: 'center',
-    }).setOrigin(0.5);
-    text.setShadow(0, 4, options.textColor === '#513b59' ? '#ffffff' : '#57394f', 4, true, true);
+    }).setOrigin(0.5).setLetterSpacing(-1);
+    const darkText = options.textColor !== undefined && options.textColor !== '#ffffff';
+    text.setShadow(0, darkText ? 2 : 4, darkText ? '#ffffff' : '#57394f', darkText ? 2 : 4, true, true);
     container.add([shadow, plate, text]);
     container.setSize(width, height).setInteractive({ useHandCursor: true });
     container.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.025, duration: 90 }));
@@ -93,10 +102,10 @@ export class BaseScene extends Phaser.Scene {
     const root = this.add.container(x, y);
     const bg = this.add.graphics().fillStyle(0xffffff, 0.86).fillRoundedRect(-width / 2, -46, width, 92, 30);
     const caption = this.add.text(-width / 2 + 24, -18, label, {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '22px', color: '#806d83', fontStyle: 'bold',
+      fontFamily: UI_FONT, fontSize: '22px', color: '#806d83', fontStyle: 'bold',
     });
     const number = this.add.text(-width / 2 + 24, 10, value, {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '32px', color: '#513b59', fontStyle: 'bold',
+      fontFamily: UI_FONT, fontSize: '32px', color: '#513b59', fontStyle: 'bold',
     });
     root.add([bg, caption, number]);
     return root;

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { BoardModel, SeededRandom, type Board, type Position } from '../board';
+import { DISPLAY_FONT, UI_FONT } from '../constants';
 import { CHARACTERS } from '../data/characters';
 import { createDifficultyChallenge } from '../data/difficulties';
-import { getDailyChallenge, getStarsForScore } from '../data/stages';
+import { getStarsForScore } from '../data/stages';
 import { FloatingTextPool } from '../entities/FloatingTextPool';
 import { ParticlePool } from '../entities/ParticlePool';
 import { Tile as TileView, type TileSpecial } from '../entities/Tile';
@@ -10,26 +11,27 @@ import { achievementSystem } from '../systems/AchievementSystem';
 import { audioSystem } from '../systems/AudioSystem';
 import { GoalSystem, type GoalProgress } from '../systems/GoalSystem';
 import { hapticSystem } from '../systems/HapticSystem';
-import { getLocalDateKey, saveSystem } from '../systems/SaveSystem';
+import { saveSystem } from '../systems/SaveSystem';
 import type { Difficulty, ObstacleType, SpecialTileType, StageDefinition } from '../types';
 import { TutorialOverlay } from '../ui/TutorialOverlay';
 import { BaseScene } from './BaseScene';
 
-interface GameData { difficulty?: Difficulty; daily?: boolean; }
+interface GameData { difficulty?: Difficulty; }
 interface RuntimeObstacle { type: ObstacleType; row: number; col: number; hp: number; view?: Phaser.GameObjects.Container; }
 type BoosterMode = 'hammer' | 'paw' | null;
 
-const BOARD_X = 132;
-const BOARD_Y = 455;
-const CELL = 102;
+const BOARD_X = 76;
+const BOARD_Y = 280;
+const CELL = 116;
 const BOARD_PIXELS = CELL * 8;
+const TILE_SIZE = 110;
+const STATUS_Y = 258;
 const keyOf = ({ row, col }: Position): string => `${row}:${col}`;
 
 export class GameScene extends BaseScene {
   private stage!: StageDefinition;
   private stageId = 1;
   private difficulty: Difficulty = 'easy';
-  private daily = false;
   private model!: BoardModel;
   private goals!: GoalSystem;
   private boardLayer!: Phaser.GameObjects.Container;
@@ -46,12 +48,13 @@ export class GameScene extends BaseScene {
   private tutorialActive = false;
   private ending = false;
   private score = 0;
-  private movesLeft = 0;
   private secondsLeft = 0;
+  private timeAwardedThisMove = false;
   private bestCombo = 0;
   private boosterMode: BoosterMode = null;
   private scoreText!: Phaser.GameObjects.Text;
-  private moveText!: Phaser.GameObjects.Text;
+  private timeText!: Phaser.GameObjects.Text;
+  private timeBar!: Phaser.GameObjects.Graphics;
   private goalText!: Phaser.GameObjects.Text;
   private comboText!: Phaser.GameObjects.Text;
   private comboBar!: Phaser.GameObjects.Graphics;
@@ -64,22 +67,21 @@ export class GameScene extends BaseScene {
   public constructor() { super('GameScene'); }
 
   public init(data: GameData): void {
-    this.daily = data.daily === true;
     this.difficulty = data.difficulty ?? 'easy';
   }
 
   public create(): void {
     this.addBackdrop(0xc9e9ff);
     this.cameras.main.fadeIn(180, 255, 248, 232);
-    this.stage = this.daily ? getDailyChallenge(getLocalDateKey()) : createDifficultyChallenge(this.difficulty);
+    this.stage = createDifficultyChallenge(this.difficulty);
     this.stageId = this.stage.id;
     const allowedKinds = (this.stage.characterPool ?? CHARACTERS.map((character) => character.id))
       .map((id) => CHARACTERS.findIndex((character) => character.id === id))
       .filter((index) => index >= 0);
     this.model = new BoardModel({ seed: this.stage.seed, kinds: allowedKinds });
     this.goals = new GoalSystem(this.stage);
-    this.movesLeft = this.stage.moves ?? 0;
     this.secondsLeft = this.stage.timeLimit ?? 0;
+    this.timeAwardedThisMove = false;
     this.score = 0;
     this.bestCombo = 0;
     this.locked = false;
@@ -92,7 +94,7 @@ export class GameScene extends BaseScene {
     const settings = saveSystem.getData().settings;
     audioSystem.applySettings(settings);
     hapticSystem.setEnabled(settings.hapticsEnabled);
-    this.particlePool = new ParticlePool(this, settings.reducedParticles ? 16 : 52);
+    this.particlePool = new ParticlePool(this, settings.reducedParticles ? 20 : 76);
     this.floatingPool = new FloatingTextPool(this, 16);
 
     this.createHud();
@@ -111,43 +113,43 @@ export class GameScene extends BaseScene {
       this.particlePool.destroy();
       this.floatingPool.destroy();
     });
-    void audioSystem.resume().then(() => audioSystem.startMusic(this.daily ? 'daily' : 'stage'));
+    void audioSystem.resume().then(() => audioSystem.startMusic('stage'));
   }
 
   private createHud(): void {
     const shell = this.add.graphics();
-    shell.fillStyle(0x4d3d61, 0.14).fillRoundedRect(24, 31, 1032, 310, 48);
+    shell.fillStyle(0x4d3d61, 0.14).fillRoundedRect(24, 25, 1032, 220, 42);
     shell.fillStyle(0xffffff, 0.91).lineStyle(4, 0xffffff, 0.9)
-      .fillRoundedRect(24, 20, 1032, 310, 48).strokeRoundedRect(24, 20, 1032, 310, 48);
-    shell.fillStyle(0xff7890, 0.12).fillRoundedRect(40, 38, 280, 120, 34);
-    shell.fillStyle(0x7659a7, 0.08).fillRoundedRect(352, 40, 360, 118, 34);
-    shell.fillStyle(0x67bda0, 0.1).fillRoundedRect(352, 174, 520, 80, 30);
-    this.add.text(60, 49, this.daily ? 'DAILY CHALLENGE' : this.difficulty.replace(/([A-Z])/g, ' $1').toUpperCase(), {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#af6476',
-    }).setShadow(0, 2, '#ffffff', 2);
-    this.add.text(60, 88, this.stage.title, {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '45px', fontStyle: 'bold', color: '#4e3b58',
-    }).setShadow(0, 3, '#ffffff', 3);
-    this.moveText = this.add.text(60, 193, '', {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '30px', fontStyle: 'bold', color: '#6f5795',
+      .fillRoundedRect(24, 14, 1032, 220, 42).strokeRoundedRect(24, 14, 1032, 220, 42);
+    shell.fillStyle(0xff7890, 0.09).fillRoundedRect(132, 31, 270, 88, 28);
+    shell.fillStyle(0x7659a7, 0.08).fillRoundedRect(420, 31, 260, 88, 28);
+    shell.fillStyle(0x67bda0, 0.1).fillRoundedRect(40, 133, 920, 72, 25);
+    this.add.text(150, 39, this.difficulty.replace(/([A-Z])/g, ' $1').toUpperCase(), {
+      fontFamily: DISPLAY_FONT, fontSize: '18px', fontStyle: 'bold', color: '#a85d74',
     });
-    this.scoreText = this.add.text(532, 105, '0', {
-      fontFamily: 'Arial, sans-serif', fontSize: '59px', fontStyle: 'bold', color: '#4e3b58',
+    this.timeText = this.add.text(150, 67, '', {
+      fontFamily: DISPLAY_FONT, fontSize: '34px', fontStyle: 'bold', color: '#513d60',
+    });
+    this.timeBar = this.add.graphics();
+    this.scoreText = this.add.text(550, 80, '0', {
+      fontFamily: DISPLAY_FONT, fontSize: '52px', fontStyle: 'bold', color: '#4e3b58',
     }).setOrigin(0.5).setShadow(0, 4, '#ffffff', 4);
-    this.add.text(532, 62, 'SCORE', { fontFamily: 'Arial, sans-serif', fontSize: '19px', fontStyle: 'bold', color: '#9a849e' }).setOrigin(0.5);
-    this.goalText = this.add.text(612, 214, '', {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '25px', fontStyle: 'bold', color: '#5b4963', align: 'center', wordWrap: { width: 480 },
+    this.add.text(550, 43, 'SCORE', { fontFamily: DISPLAY_FONT, fontSize: '17px', fontStyle: 'bold', color: '#9a849e' }).setOrigin(0.5).setLetterSpacing(2);
+    this.goalText = this.add.text(500, 169, '', {
+      fontFamily: UI_FONT, fontSize: '23px', fontStyle: 'bold', color: '#5b4963', align: 'center', wordWrap: { width: 860 },
     }).setOrigin(0.5).setShadow(0, 2, '#ffffff', 2);
     this.comboBar = this.add.graphics();
-    this.comboText = this.add.text(540, 285, 'COMBO ENERGY', {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '19px', fontStyle: 'bold', color: '#806c83',
+    this.comboText = this.add.text(835, 83, '', {
+      fontFamily: DISPLAY_FONT, fontSize: '23px', fontStyle: 'bold', color: '#806c83',
     }).setOrigin(0.5);
     this.statusPlate = this.add.graphics().setDepth(99).setVisible(false);
-    this.statusText = this.add.text(540, 388, '', {
-      fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '42px', fontStyle: 'bold', color: '#ffffff',
+    this.statusText = this.add.text(540, STATUS_Y, '', {
+      fontFamily: UI_FONT, fontSize: '42px', fontStyle: 'bold', color: '#ffffff',
       stroke: '#5e3d69', strokeThickness: 9,
     }).setOrigin(0.5).setDepth(100).setShadow(0, 7, '#4a304f', 8, true, true);
-    this.addButton(970, 118, 'Ⅱ', () => { if (!this.tutorialActive) this.togglePause(); }, { width: 92, height: 92, color: 0xffffff, textColor: '#5d4b65', fontSize: 34 });
+    this.addButton(76, 76, '⌂', () => { if (!this.tutorialActive) this.togglePause(); }, {
+      width: 82, height: 82, color: 0xffffff, color2: 0xfff1e7, textColor: '#5d416b', fontSize: 43,
+    });
     this.refreshHud();
   }
 
@@ -181,7 +183,7 @@ export class GameScene extends BaseScene {
       const point = this.cellPosition(position);
       const view = new TileView(this, point.x, point.y, {
         character: cell.kind ?? 0,
-        size: 96,
+        size: TILE_SIZE,
         special: (cell.special ?? 'none') as TileSpecial,
         reducedMotion: saveSystem.getData().settings.reducedMotion,
       });
@@ -196,6 +198,7 @@ export class GameScene extends BaseScene {
         });
       }
     }));
+    this.syncObstacleTileVisibility();
     this.refreshSelection();
   }
 
@@ -213,7 +216,7 @@ export class GameScene extends BaseScene {
       const point = this.cellPosition(position);
       const view = new TileView(this, point.x, point.y, {
         character: cell.kind ?? 0,
-        size: 96,
+        size: TILE_SIZE,
         special: (cell.special ?? 'none') as TileSpecial,
         reducedMotion: saveSystem.getData().settings.reducedMotion,
       });
@@ -228,6 +231,7 @@ export class GameScene extends BaseScene {
         });
       }
     }));
+    this.syncObstacleTileVisibility();
     this.refreshSelection();
   }
 
@@ -265,7 +269,23 @@ export class GameScene extends BaseScene {
       startY: pointer.worldY,
       position,
     };
-    void audioSystem.resumeAndStartMusic(this.daily ? 'daily' : 'stage');
+    this.createTouchRipple(pointer.worldX, pointer.worldY);
+    void audioSystem.resumeAndStartMusic('stage');
+  }
+
+  private createTouchRipple(x: number, y: number): void {
+    if (saveSystem.getData().settings.reducedMotion) return;
+    const ripple = this.add.graphics().setPosition(x, y).setDepth(96).setBlendMode(Phaser.BlendModes.ADD);
+    ripple.fillStyle(0xffffff, 0.7).fillCircle(0, 0, 8);
+    ripple.lineStyle(5, 0xffd8eb, 0.9).strokeCircle(0, 0, 20);
+    ripple.lineStyle(2, 0xffffff, 0.95).strokeCircle(0, 0, 31);
+    for (let index = 0; index < 6; index += 1) {
+      const angle = index * Math.PI / 3;
+      ripple.fillStyle(index % 2 === 0 ? 0xfff1a8 : 0xc5f4ff, 0.95)
+        .fillCircle(Math.cos(angle) * 27, Math.sin(angle) * 27, index % 2 === 0 ? 4 : 3);
+    }
+    ripple.setScale(0.35);
+    this.tweens.add({ targets: ripple, scale: 1.65, alpha: 0, angle: 12, duration: 280, ease: 'Cubic.Out', onComplete: () => ripple.destroy() });
   }
 
   private finishBoardPointer(pointer: Phaser.Input.Pointer): void {
@@ -352,11 +372,11 @@ export class GameScene extends BaseScene {
       return;
     }
 
-    if (this.stage.moves !== undefined) this.movesLeft -= 1;
     const swappedSpecials = [originalBoard[from.row]?.[from.col]?.special, originalBoard[to.row]?.[to.col]?.special];
     const swapImpact = swappedSpecials.includes('rainbow') ? 'rainbow'
       : swappedSpecials.includes('bomb') ? 'bomb'
         : swappedSpecials.some((special) => special === 'row' || special === 'column') ? 'rocket' : undefined;
+    this.timeAwardedThisMove = false;
     let cascade = 0;
     for (const step of result.cascades) {
       cascade += 1;
@@ -430,7 +450,7 @@ export class GameScene extends BaseScene {
       const definition = character === null || character === undefined ? undefined : CHARACTERS[character];
       const colors = definition ? [definition.bodyColor, definition.accentColor, 0xffffff] : [0xff8fab, 0xffd166, 0xffffff];
       if (!settings.reducedParticles) this.particlePool.burst(worldX, worldY, {
-        count: impactKind === 'bomb' || impactKind === 'rainbow' ? 16 : combo >= 4 ? 12 : 8,
+        count: impactKind === 'rainbow' ? 28 : impactKind === 'bomb' ? 22 : impactKind === 'match4' || combo >= 4 ? 16 : 11,
         colors,
         speed: { min: 90, max: impactKind === 'bomb' ? 260 : 190 },
         lifespan: impactKind === 'bomb' ? 620 : 470,
@@ -442,13 +462,18 @@ export class GameScene extends BaseScene {
     this.attackObstacles(removed);
     const anchor = removed[Math.floor(removed.length / 2)] ?? { row: 3, col: 3 };
     const p = this.cellPosition(anchor);
+    if (!settings.reducedMotion) this.createMatchTrace(removed, impactKind);
     this.createImpactWave(BOARD_X + p.x, BOARD_Y + p.y, impactKind, combo, fullRow, fullColumn);
-    this.floatingPool.show(BOARD_X + p.x, BOARD_Y + p.y, points, { fontSize: 31 + Math.min(combo, 5) * 2 });
+    this.floatingPool.show(BOARD_X + p.x, BOARD_Y + p.y, points, {
+      color: combo >= 3 ? '#fff0a6' : '#ffffff', fontSize: 38 + Math.min(combo, 5) * 3, duration: 820, rise: 64,
+    });
     const phrases = ['좋아!', '멋져!', '대단해!', '포포 콤보!', '환상적이야!', '믿을 수 없어!'];
     if (combo >= 2) this.flashStatus(phrases[Math.min(phrases.length - 1, combo - 2)] ?? '좋아!', true);
     audioSystem.playSfx(impactKind, combo);
     if (combo >= 2) audioSystem.playSfx('combo', combo);
-    hapticSystem.play(impactKind === 'rainbow' ? 'rainbow' : impactKind === 'bomb' ? 'bomb' : impactKind === 'match4' || impactKind === 'rocket' ? 'match4' : 'match3');
+    const hapticCue = impactKind === 'rainbow' ? 'rainbow' : impactKind === 'bomb' ? 'bomb' : impactKind === 'match4' || impactKind === 'rocket' ? 'match4' : 'match3';
+    hapticSystem.playMatch(hapticCue, combo);
+    this.addMatchTime(impactKind, BOARD_X + p.x, BOARD_Y + p.y);
     if (settings.screenShake && !settings.reducedMotion) {
       const strength = impactKind === 'bomb' ? 0.006 : impactKind === 'rainbow' ? 0.005 : Math.min(0.0038, 0.0012 + combo * 0.00035);
       this.cameras.main.shake(impactKind === 'bomb' ? 135 : 90, strength);
@@ -458,14 +483,38 @@ export class GameScene extends BaseScene {
 
   private createPopFlash(x: number, y: number, color: number, intensity: number): void {
     const flash = this.add.graphics().setPosition(x, y).setDepth(90).setBlendMode(Phaser.BlendModes.ADD);
-    flash.fillStyle(color, 0.32 * intensity).fillCircle(0, 0, 38);
-    flash.lineStyle(5, 0xffffff, 0.8 * intensity).strokeCircle(0, 0, 24);
-    for (let index = 0; index < 6; index += 1) {
-      const angle = index * Math.PI / 3 + 0.22;
-      flash.lineStyle(4, color, 0.75).lineBetween(Math.cos(angle) * 28, Math.sin(angle) * 28, Math.cos(angle) * 50, Math.sin(angle) * 50);
+    flash.fillStyle(color, 0.34 * intensity).fillCircle(0, 0, 44);
+    flash.fillStyle(0xffffff, 0.82 * intensity).fillCircle(0, 0, 17);
+    flash.lineStyle(5, 0xffffff, 0.84 * intensity).strokeCircle(0, 0, 29);
+    for (let index = 0; index < 8; index += 1) {
+      const angle = index * Math.PI / 4 + 0.18;
+      const inner = index % 2 === 0 ? 31 : 35;
+      const outer = index % 2 === 0 ? 62 : 51;
+      flash.lineStyle(index % 2 === 0 ? 5 : 3, color, 0.82).lineBetween(Math.cos(angle) * inner, Math.sin(angle) * inner, Math.cos(angle) * outer, Math.sin(angle) * outer);
     }
     flash.setScale(0.45);
-    this.tweens.add({ targets: flash, scale: 1.45, alpha: 0, duration: 210, ease: 'Cubic.Out', onComplete: () => flash.destroy() });
+    this.tweens.add({ targets: flash, scale: 1.58, alpha: 0, angle: 8, duration: 255, ease: 'Cubic.Out', onComplete: () => flash.destroy() });
+  }
+
+  private createMatchTrace(removed: readonly Position[], kind: 'match3' | 'match4' | 'rocket' | 'bomb' | 'rainbow'): void {
+    const color = kind === 'rainbow' ? 0xdca8ff : kind === 'bomb' ? 0xffbd62 : kind === 'rocket' ? 0x8eeaff : 0xff9fbd;
+    const keys = new Set(removed.map(keyOf));
+    const trace = this.add.graphics().setDepth(89).setBlendMode(Phaser.BlendModes.ADD);
+    const drawConnections = (width: number, alpha: number, lineColor: number): void => {
+      trace.lineStyle(width, lineColor, alpha);
+      removed.forEach((position) => {
+        const start = this.cellPosition(position);
+        [{ row: position.row, col: position.col + 1 }, { row: position.row + 1, col: position.col }].forEach((next) => {
+          if (!keys.has(keyOf(next))) return;
+          const end = this.cellPosition(next);
+          trace.lineBetween(BOARD_X + start.x, BOARD_Y + start.y, BOARD_X + end.x, BOARD_Y + end.y);
+        });
+      });
+    };
+    drawConnections(28, 0.22, color);
+    drawConnections(10, 0.52, color);
+    drawConnections(3, 0.9, 0xffffff);
+    this.tweens.add({ targets: trace, alpha: 0, duration: 310, ease: 'Sine.Out', onComplete: () => trace.destroy() });
   }
 
   private createImpactWave(
@@ -477,11 +526,38 @@ export class GameScene extends BaseScene {
     fullColumn?: number,
   ): void {
     const color = kind === 'rainbow' ? 0xdca8ff : kind === 'bomb' ? 0xffb34f : kind === 'rocket' ? 0x8eeaff : 0xffa6bd;
+    const flare = this.add.graphics().setPosition(x, y).setDepth(93).setBlendMode(Phaser.BlendModes.ADD);
+    flare.fillStyle(color, 0.25).fillCircle(0, 0, kind === 'bomb' ? 82 : 58);
+    for (let index = 0; index < 12; index += 1) {
+      const angle = index * Math.PI / 6;
+      const length = (index % 2 === 0 ? 104 : 78) + Math.min(combo, 6) * 5;
+      flare.lineStyle(index % 2 === 0 ? 7 : 4, index % 3 === 0 ? 0xffffff : color, index % 2 === 0 ? 0.7 : 0.5)
+        .lineBetween(Math.cos(angle) * 24, Math.sin(angle) * 24, Math.cos(angle) * length, Math.sin(angle) * length);
+    }
+    flare.setScale(0.3).setAngle(-8);
+    this.tweens.add({ targets: flare, scale: 1.25, angle: 7, alpha: 0, duration: 330, ease: 'Expo.Out', onComplete: () => flare.destroy() });
     const ring = this.add.graphics().setPosition(x, y).setDepth(92).setBlendMode(Phaser.BlendModes.ADD);
     ring.lineStyle(kind === 'bomb' ? 14 : 8, 0xffffff, 0.86).strokeCircle(0, 0, kind === 'bomb' ? 52 : 34);
     ring.lineStyle(kind === 'bomb' ? 24 : 14, color, 0.35).strokeCircle(0, 0, kind === 'bomb' ? 66 : 45);
     ring.setScale(0.35);
     this.tweens.add({ targets: ring, scale: kind === 'bomb' ? 4.4 : 2.25, alpha: 0, duration: kind === 'bomb' ? 360 : 235, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+    const echo = this.add.graphics().setPosition(x, y).setDepth(91).setBlendMode(Phaser.BlendModes.ADD);
+    echo.lineStyle(5, color, 0.72).strokeCircle(0, 0, kind === 'bomb' ? 64 : 45);
+    echo.setScale(0.5).setAlpha(0);
+    this.tweens.add({ targets: echo, scale: kind === 'bomb' ? 3.7 : 2.65, alpha: { from: 0.8, to: 0 }, delay: 55, duration: 390, ease: 'Cubic.Out', onComplete: () => echo.destroy() });
+
+    if (kind === 'bomb' || kind === 'rainbow' || combo >= 4) {
+      const washColor = kind === 'rainbow' ? 0xdca8ff : kind === 'bomb' ? 0xffc36c : 0xffe38b;
+      const wash = this.add.rectangle(540, 960, 1080, 1920, washColor, kind === 'rainbow' ? 0.2 : 0.12)
+        .setDepth(88).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      this.tweens.add({ targets: wash, alpha: { from: 0.34, to: 0 }, duration: 260, ease: 'Expo.Out', onComplete: () => wash.destroy() });
+      const prism = this.add.graphics().setPosition(x, y).setDepth(94).setBlendMode(Phaser.BlendModes.ADD);
+      [0xff7f9f, 0xffdf73, 0x74e5d2, 0x8cc8ff, 0xd596ff].forEach((prismColor, index) => {
+        prism.lineStyle(5, prismColor, 0.72).strokeCircle(0, 0, 34 + index * 9);
+      });
+      prism.setScale(0.4);
+      this.tweens.add({ targets: prism, scale: kind === 'rainbow' ? 4.8 : 3.5, alpha: 0, angle: 24, duration: 440, ease: 'Quart.Out', onComplete: () => prism.destroy() });
+    }
 
     if (kind === 'rocket') {
       const beam = this.add.graphics().setDepth(91).setBlendMode(Phaser.BlendModes.ADD);
@@ -549,14 +625,23 @@ export class GameScene extends BaseScene {
       const root = this.add.container(point.x, point.y);
       const art = this.add.graphics();
       if (obstacle.type === 'woodCrate') {
-        art.fillStyle(0xa96f42, 0.86).lineStyle(5, 0x704526, 0.9).fillRoundedRect(-42, -42, 84, 84, 15).strokeRoundedRect(-42, -42, 84, 84, 15);
-        art.lineStyle(8, 0xe0a46d, 0.9).lineBetween(-28, -28, 28, 28).lineBetween(28, -28, -28, 28);
+        art.fillStyle(0x714324, 1).fillRoundedRect(-47, -47, 94, 94, 17);
+        art.fillStyle(0xb8753e, 1).lineStyle(6, 0x5b351e, 1).fillRoundedRect(-43, -43, 86, 86, 14).strokeRoundedRect(-43, -43, 86, 86, 14);
+        art.lineStyle(10, 0xe1a267, 1).lineBetween(-28, -28, 28, 28).lineBetween(28, -28, -28, 28);
+        art.lineStyle(3, 0xffd09a, 0.7).strokeRoundedRect(-35, -35, 70, 70, 10);
       } else if (obstacle.type === 'jelly') {
-        art.fillStyle(0x82dff2, 0.27).lineStyle(4, 0x5cbdd4, 0.62).fillRoundedRect(-45, -45, 90, 90, 22).strokeRoundedRect(-45, -45, 90, 90, 22);
-        art.fillStyle(0xffffff, 0.6).fillCircle(-23, -25, 8);
+        art.fillStyle(0x79ddf0, 0.38).lineStyle(5, 0x43b7d2, 0.82).fillRoundedRect(-45, -45, 90, 90, 25).strokeRoundedRect(-45, -45, 90, 90, 25);
+        art.fillStyle(0xffffff, 0.72).fillCircle(-24, -25, 8).fillCircle(23, 22, 5);
+        art.lineStyle(3, 0xe7fbff, 0.76).beginPath().arc(0, 2, 32, 0.2, 1.25).strokePath();
       } else if (obstacle.type === 'stone') {
-        art.fillStyle(0x8e8794, 0.94).lineStyle(5, 0x635d69, 0.9).fillRoundedRect(-43, -43, 86, 86, 24).strokeRoundedRect(-43, -43, 86, 86, 24);
-        art.lineStyle(4, 0xc6beca, 0.7).lineBetween(-20, -18, 9, -5).lineBetween(9, -5, 24, 18);
+        const rock = [
+          new Phaser.Geom.Point(-35, -28), new Phaser.Geom.Point(-12, -44), new Phaser.Geom.Point(24, -39),
+          new Phaser.Geom.Point(43, -12), new Phaser.Geom.Point(36, 28), new Phaser.Geom.Point(13, 43),
+          new Phaser.Geom.Point(-25, 38), new Phaser.Geom.Point(-43, 11),
+        ];
+        art.fillStyle(0x77717f, 1).lineStyle(6, 0x514b59, 1).fillPoints(rock, true).strokePoints(rock, true);
+        art.fillStyle(0xa9a2af, 0.72).fillEllipse(-12, -19, 35, 19);
+        art.lineStyle(4, 0xd3ccd8, 0.72).lineBetween(-20, -12, 5, -1).lineBetween(5, -1, 20, 18).lineBetween(5, -1, -7, 21);
       } else {
         art.fillStyle(0xffd85d, 1).lineStyle(5, 0xffffff, 0.9).fillPoints([
           new Phaser.Geom.Point(0, -39), new Phaser.Geom.Point(12, -12), new Phaser.Geom.Point(39, -8), new Phaser.Geom.Point(18, 10),
@@ -566,11 +651,20 @@ export class GameScene extends BaseScene {
           new Phaser.Geom.Point(24, 38), new Phaser.Geom.Point(0, 22), new Phaser.Geom.Point(-24, 38), new Phaser.Geom.Point(-18, 10), new Phaser.Geom.Point(-39, -8), new Phaser.Geom.Point(-12, -12),
         ], true);
       }
-      const hp = obstacle.hp > 1 ? this.add.text(30, 28, String(obstacle.hp), { fontFamily: 'Arial, sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#ffffff', stroke: '#58465f', strokeThickness: 4 }).setOrigin(0.5) : undefined;
+      const hp = obstacle.hp > 1 ? this.add.text(30, 28, String(obstacle.hp), { fontFamily: DISPLAY_FONT, fontSize: '24px', fontStyle: 'bold', color: '#ffffff', stroke: '#58465f', strokeThickness: 4 }).setOrigin(0.5) : undefined;
       root.add(hp ? [art, hp] : [art]);
       this.obstacleLayer.add(root);
       obstacle.view = root;
     }
+    this.syncObstacleTileVisibility();
+  }
+
+  private syncObstacleTileVisibility(): void {
+    this.views.forEach((view) => view.characterArt.setVisible(true));
+    this.obstacles.forEach((obstacle) => {
+      if (obstacle.hp <= 0 || (obstacle.type !== 'woodCrate' && obstacle.type !== 'stone')) return;
+      this.views.get(keyOf(obstacle))?.characterArt.setVisible(false);
+    });
   }
 
   private attackObstacles(removed: readonly Position[]): void {
@@ -595,12 +689,11 @@ export class GameScene extends BaseScene {
   }
 
   private createBoosters(): void {
-    const y = 1435;
+    const y = 1335;
     const data = saveSystem.getData();
     this.addButton(230, y, `셔플  ${data.items.shuffle}`, () => this.useShuffle(), { width: 275, height: 100, color: 0x68bba0, fontSize: 28, icon: '⟳' });
     this.addButton(540, y, `망치  ${data.items.hammer}`, () => this.setBooster('hammer'), { width: 275, height: 100, color: 0xef9c63, fontSize: 28, icon: '◆' });
     this.addButton(850, y, `포포  ${data.items.paw}`, () => this.setBooster('paw'), { width: 275, height: 100, color: 0x8c72bd, fontSize: 28, icon: '✦' });
-    this.add.text(540, 1535, '아이템을 누른 뒤 보드의 대상을 선택하세요', { fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '23px', color: '#78647b' }).setOrigin(0.5);
   }
 
   private useShuffle(): void {
@@ -677,7 +770,7 @@ export class GameScene extends BaseScene {
   private startTimerIfNeeded(): void {
     if (this.stage.timeLimit === undefined) return;
     this.countdownEvent = this.time.addEvent({ delay: 1000, loop: true, callback: () => {
-      if (this.paused || this.ending) return;
+      if (this.paused || this.ending || this.tutorialActive) return;
       this.secondsLeft -= 1;
       this.refreshHud();
       if (this.secondsLeft <= 0) this.checkEnd();
@@ -686,14 +779,47 @@ export class GameScene extends BaseScene {
 
   private refreshHud(combo = 0): void {
     this.scoreText.setText(this.score.toLocaleString('ko-KR'));
-    this.moveText.setText(this.stage.timeLimit !== undefined ? `남은 시간  ${Math.max(0, this.secondsLeft)}초` : `남은 이동  ${Math.max(0, this.movesLeft)}회`);
+    const safeSeconds = Math.max(0, this.secondsLeft);
+    this.timeText.setText(this.formatTime(safeSeconds));
+    const ratio = Phaser.Math.Clamp(safeSeconds / Math.max(1, this.stage.timeLimit ?? 1), 0, 1);
+    const barColor = safeSeconds <= 10 ? 0xff5577 : safeSeconds <= 30 ? 0xffa349 : 0x5fcf9f;
+    this.timeBar.clear()
+      .fillStyle(0x513b59, 0.12).fillRoundedRect(150, 106, 230, 9, 5)
+      .fillStyle(barColor, 1).fillRoundedRect(150, 106, Math.max(5, 230 * ratio), 9, 5);
+    this.timeText.setColor(safeSeconds <= 10 ? '#d94363' : '#513d60');
     this.goalText.setText(this.goals.progress.map((progress) => this.describeGoal(progress)).join('  ·  '));
-    this.comboText.setText(combo > 1 ? `${combo} COMBO · ENERGY UP` : 'COMBO ENERGY');
-    this.comboBar.clear()
-      .fillStyle(0x5a4867, 0.16).fillRoundedRect(298, 309, 484, 28, 14)
-      .fillStyle(0xffffff, 0.72).fillRoundedRect(302, 313, 476, 20, 10);
-    const width = 476 * Math.min(1, combo / 10);
-    if (width > 0) this.comboBar.fillGradientStyle(combo >= 5 ? 0xffcf4f : 0xff8da2, combo >= 5 ? 0xffef9b : 0xffb3ca, 0xff6f91, 0xff91c6, 1).fillRoundedRect(302, 313, width, 20, 10);
+    this.comboText.setText(combo > 1 ? `${combo} COMBO` : '');
+    this.comboBar.clear();
+    if (combo > 0) {
+      this.comboBar.fillStyle(0x5a4867, 0.13).fillRoundedRect(685, 112, 210, 12, 6);
+      this.comboBar.fillGradientStyle(combo >= 5 ? 0xffcf4f : 0xff8da2, combo >= 5 ? 0xffef9b : 0xffb3ca, 0xff6f91, 0xff91c6, 1)
+        .fillRoundedRect(685, 112, 210 * Math.min(1, combo / 10), 12, 6);
+    }
+  }
+
+  private formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  private addMatchTime(
+    impact: 'match3' | 'match4' | 'rocket' | 'bomb' | 'rainbow',
+    x: number,
+    y: number,
+  ): void {
+    if (this.timeAwardedThisMove) return;
+    this.timeAwardedThisMove = true;
+    const bonus = impact === 'rainbow' || impact === 'bomb' ? 3 : impact === 'rocket' || impact === 'match4' ? 2 : 1;
+    const cap = this.stage.timeLimit ?? 0;
+    const before = this.secondsLeft;
+    this.secondsLeft = Math.min(cap, this.secondsLeft + bonus);
+    const gained = this.secondsLeft - before;
+    if (gained <= 0) return;
+    this.floatingPool.show(x, y - 42, `+${gained}초`, {
+      color: '#baffdd', stroke: '#24584a', fontSize: impact === 'rainbow' ? 52 : 45, duration: 900, rise: 82,
+    });
+    this.tweens.add({ targets: this.timeText, scale: { from: 1.32, to: 1 }, duration: 260, ease: 'Back.Out' });
+    this.refreshHud();
   }
 
   private describeGoal(progress: GoalProgress): string {
@@ -708,8 +834,7 @@ export class GameScene extends BaseScene {
 
   private checkEnd(): void {
     if (this.ending) return;
-    if (this.goals.isComplete) { this.finish(true); return; }
-    if ((this.stage.moves !== undefined && this.movesLeft <= 0) || (this.stage.timeLimit !== undefined && this.secondsLeft <= 0)) this.finish(false);
+    if (this.secondsLeft <= 0) this.finish(this.goals.isComplete || this.score >= this.stage.starThresholds[0]);
   }
 
   private finish(success: boolean): void {
@@ -718,19 +843,16 @@ export class GameScene extends BaseScene {
     this.locked = true;
     if (this.countdownEvent) this.countdownEvent.paused = true;
     const stars = success ? getStarsForScore(this.stage, this.score) : 0;
-    const bonus = success && this.stage.moves !== undefined ? this.movesLeft * 100 : 0;
-    this.score += bonus;
     audioSystem.playSfx(success ? 'success' : 'failure');
     if (!success) hapticSystem.play('failure');
-    if (this.daily) saveSystem.updateDaily(this.score, success);
-    else if (success) {
+    if (success) {
       saveSystem.recordStageResult({ stageId: this.stageId, score: this.score, stars, bestCombo: this.bestCombo });
       achievementSystem.record({ type: 'stageComplete', combo: this.bestCombo });
       achievementSystem.record({ type: 'starsEarned', total: saveSystem.getData().progress.totalStars });
     }
     this.time.delayedCall(500, () => this.fadeTo('ResultScene', {
       stageId: this.stageId, difficulty: this.difficulty, score: this.score, stars, bestCombo: this.bestCombo, success,
-      remaining: this.stage.moves !== undefined ? Math.max(0, this.movesLeft) : Math.max(0, this.secondsLeft), reward: success ? stars + 1 : 0, daily: this.daily,
+      remaining: this.stage.timeLimit ?? 0, reward: success ? stars + 1 : 0,
     }));
   }
 
@@ -741,16 +863,16 @@ export class GameScene extends BaseScene {
     this.locked = true;
     const shade = this.add.rectangle(540, 960, 1080, 1920, 0x31283c, 0.72).setInteractive().setDepth(1000);
     const panel = this.add.graphics().fillStyle(0xfffbf1).fillRoundedRect(140, 590, 800, 720, 56).setDepth(1001);
-    const title = this.add.text(540, 740, '잠시 쉬는 중', { fontFamily: 'Arial, Malgun Gothic, sans-serif', fontSize: '62px', fontStyle: 'bold', color: '#513b59' }).setOrigin(0.5).setDepth(1002);
+    const title = this.add.text(540, 740, '게임을 멈췄어요', { fontFamily: UI_FONT, fontSize: '62px', fontStyle: 'bold', color: '#513b59' }).setOrigin(0.5).setDepth(1002);
     const resume = this.addButton(540, 930, '계속하기', () => {
       [shade, panel, title, resume, quit].forEach((item) => item.destroy());
       this.resumeCountdown();
     }, { width: 560, color: 0x62b997 }).setDepth(1002);
-    const quit = this.addButton(540, 1090, '난이도 선택', () => this.fadeTo(this.daily ? 'MenuScene' : 'StageSelectScene'), { width: 560, color: 0x7659a7 }).setDepth(1002);
+    const quit = this.addButton(540, 1090, '홈 화면으로', () => this.fadeTo('MenuScene'), { width: 560, color: 0x7659a7, icon: '⌂' }).setDepth(1002);
   }
 
   private resumeCountdown(): void {
-    const label = this.add.text(540, 960, '3', { fontFamily: 'Arial, sans-serif', fontSize: '150px', fontStyle: 'bold', color: '#ffffff', stroke: '#604d6a', strokeThickness: 12 }).setOrigin(0.5).setDepth(2000);
+    const label = this.add.text(540, 960, '3', { fontFamily: DISPLAY_FONT, fontSize: '150px', fontStyle: 'bold', color: '#ffffff', stroke: '#604d6a', strokeThickness: 12 }).setOrigin(0.5).setDepth(2000);
     let count = 3;
     this.time.addEvent({ delay: 480, repeat: 2, callback: () => {
       count -= 1;
@@ -760,7 +882,7 @@ export class GameScene extends BaseScene {
   }
 
   private showTutorialIfNeeded(): void {
-    if (this.daily || this.difficulty !== 'easy' || saveSystem.getData().progress.tutorialComplete) return;
+    if (this.difficulty !== 'easy' || saveSystem.getData().progress.tutorialComplete) return;
     this.tutorialActive = true;
     this.locked = true;
     const finishTutorial = (): void => {
@@ -783,7 +905,7 @@ export class GameScene extends BaseScene {
   private flashStatus(message: string, impact = false): void {
     const width = impact ? 720 : 640;
     const height = impact ? 112 : 86;
-    const top = 388 - height / 2;
+    const top = STATUS_Y - height / 2;
     this.statusPlate.clear()
       .fillStyle(0x493451, 0.22).fillRoundedRect(540 - width / 2, top + 8, width, height, height / 2)
       .fillGradientStyle(impact ? 0xff7f98 : 0x7c66a5, impact ? 0xffb866 : 0x9984bc, impact ? 0xdb5b86 : 0x675287, impact ? 0xe78462 : 0x79639a, 0.96)

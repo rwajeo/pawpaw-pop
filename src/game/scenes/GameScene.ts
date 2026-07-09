@@ -71,8 +71,10 @@ export class GameScene extends BaseScene {
 
   public init(data: GameData): void {
     this.mode = data.mode ?? 'timed';
-    const unlocked = saveSystem.getData().progress.unlockedStage;
-    this.stageId = Math.min(MAX_LEVEL, Math.max(1, Math.floor(data.levelId ?? data.stageId ?? unlocked)));
+    const progress = saveSystem.getData().progress;
+    const hasCompletedLevel = Object.values(progress.stages).some((stage) => stage.completed);
+    const fallbackLevel = hasCompletedLevel ? progress.unlockedStage : 1;
+    this.stageId = Math.min(MAX_LEVEL, Math.max(1, Math.floor(data.levelId ?? data.stageId ?? fallbackLevel)));
   }
 
   public create(): void {
@@ -1152,7 +1154,8 @@ export class GameScene extends BaseScene {
     this.locked = true;
     if (this.countdownEvent) this.countdownEvent.paused = true;
     const isEndless = this.mode === 'endless';
-    const stars = success ? getStarsForScore(this.stage, this.score) : 0;
+    const scoreStars = getStarsForScore(this.stage, this.score);
+    const stars: 0 | 1 | 2 | 3 = success ? (Math.max(1, scoreStars) as 1 | 2 | 3) : 0;
     audioSystem.playSfx(success ? 'success' : 'failure');
     if (!success) hapticSystem.play('failure');
     if (isEndless) {
@@ -1166,6 +1169,7 @@ export class GameScene extends BaseScene {
       stageId: this.stageId, mode: this.mode, score: this.score, stars, bestCombo: this.bestCombo, success,
       survivedSeconds: this.secondsElapsed,
       remaining: this.stage.timeLimit ?? 0, reward: success ? stars + 1 : 0,
+      starThresholds: this.stage.starThresholds,
     }));
   }
 

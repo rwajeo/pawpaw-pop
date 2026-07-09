@@ -277,50 +277,51 @@ export class Tile extends Phaser.GameObjects.Container {
 
   private drawSpecialIcon(): void {
     const g = this.specialIcon;
-    const r = this.tileSize * 0.34;
     g.clear();
     if (this.special === 'none') return;
-    if (this.special === 'rainbow') {
-      const colors = [0xff627d, 0xffca4d, 0x65d89b, 0x62b8ef, 0xb583df];
-      colors.forEach((color, index) => {
-        const x = (index - 2) * this.tileSize * 0.115;
-        const top = -this.tileSize * (0.43 + (index % 2) * 0.055);
-        g.fillStyle(color, 0.98).lineStyle(2, 0xffffff, 0.7).fillPoints([
-          new Phaser.Geom.Point(x, top - 8), new Phaser.Geom.Point(x + 6, top),
-          new Phaser.Geom.Point(x, top + 8), new Phaser.Geom.Point(x - 6, top),
-        ], true).strokePoints([
-          new Phaser.Geom.Point(x, top - 8), new Phaser.Geom.Point(x + 6, top),
-          new Phaser.Geom.Point(x, top + 8), new Phaser.Geom.Point(x - 6, top),
-        ], true);
-      });
-      g.lineStyle(5, 0xff6f86, 0.9).lineBetween(-r - 5, 17, -r + 8, 3);
-      g.lineStyle(5, 0xffce55, 0.9).lineBetween(-r - 4, 25, -r + 11, 8);
-      g.lineStyle(5, 0x65d89b, 0.9).lineBetween(r + 5, 17, r - 8, 3);
-      g.lineStyle(5, 0x67bff2, 0.9).lineBetween(r + 4, 25, r - 11, 8);
-      return;
-    }
+    const radius = this.tileSize * 0.16;
+    const x = this.tileSize * 0.3;
+    const y = this.tileSize * 0.29;
+    const fillColor = {
+      row: 0x55d8ff,
+      column: 0x69e3a5,
+      bomb: 0xff8b51,
+      rainbow: 0xd884ff,
+    }[this.special];
+
+    g.fillStyle(0x05040d, 0.28).fillCircle(x + 3, y + 4, radius + 5);
+    g.fillStyle(fillColor, 0.98)
+      .lineStyle(3, 0xffffff, 0.9)
+      .fillCircle(x, y, radius)
+      .strokeCircle(x, y, radius);
+    g.fillStyle(0xffffff, 0.24).fillCircle(x - radius * 0.36, y - radius * 0.36, radius * 0.34);
+
     if (this.special === 'bomb') {
-      g.fillStyle(0x4e405d, 0.95).lineStyle(3, 0x211a2d, 0.9).fillPoints([
-        new Phaser.Geom.Point(r - 1, 15), new Phaser.Geom.Point(r + 18, 6),
-        new Phaser.Geom.Point(r + 22, 29), new Phaser.Geom.Point(r + 2, 34),
-      ], true).strokePoints([
-        new Phaser.Geom.Point(r - 1, 15), new Phaser.Geom.Point(r + 18, 6),
-        new Phaser.Geom.Point(r + 22, 29), new Phaser.Geom.Point(r + 2, 34),
-      ], true);
-      g.lineStyle(4, 0xffb64c, 1).beginPath().moveTo(r + 14, 7).lineTo(r + 22, -5).lineTo(r + 29, -9).strokePath();
-      g.lineStyle(3, 0xffee88, 1).lineBetween(r + 28, -17, r + 28, -5).lineBetween(r + 22, -12, r + 34, -12);
+      g.fillStyle(0x2a1c33, 0.95).fillCircle(x, y + 2, radius * 0.45);
+      g.lineStyle(3, 0xfff0a0, 1).beginPath().moveTo(x + radius * 0.28, y - radius * 0.32).lineTo(x + radius * 0.52, y - radius * 0.72).strokePath();
+      g.lineStyle(2, 0xffffff, 0.88).lineBetween(x + radius * 0.66, y - radius * 0.92, x + radius * 0.66, y - radius * 0.48).lineBetween(x + radius * 0.44, y - radius * 0.7, x + radius * 0.88, y - radius * 0.7);
       return;
     }
-    const wingColor = 0x79dfff;
-    g.fillStyle(wingColor, 0.96).lineStyle(3, 0xffffff, 0.82);
+
+    if (this.special === 'rainbow') {
+      const points = Array.from({ length: 10 }, (_, index) => {
+        const pointRadius = index % 2 === 0 ? radius * 0.58 : radius * 0.25;
+        const angle = -Math.PI / 2 + index * Math.PI / 5;
+        return new Phaser.Geom.Point(x + Math.cos(angle) * pointRadius, y + Math.sin(angle) * pointRadius);
+      });
+      g.fillStyle(0xffffff, 0.95).lineStyle(2, 0xfff39a, 0.95).fillPoints(points, true).strokePoints(points, true);
+      return;
+    }
+
+    g.lineStyle(5, 0xffffff, 0.94);
     if (this.special === 'row') {
-      g.fillTriangle(-r - 21, 0, -r + 1, -15, -r + 1, 15).strokeTriangle(-r - 21, 0, -r + 1, -15, -r + 1, 15);
-      g.fillTriangle(r + 21, 0, r - 1, -15, r - 1, 15).strokeTriangle(r + 21, 0, r - 1, -15, r - 1, 15);
-      g.lineStyle(3, 0xffffff, 0.72).lineBetween(-r - 12, 0, -r - 2, 0).lineBetween(r + 12, 0, r + 2, 0);
+      g.lineBetween(x - radius * 0.58, y, x + radius * 0.58, y);
+      g.fillTriangle(x - radius * 0.78, y, x - radius * 0.38, y - radius * 0.28, x - radius * 0.38, y + radius * 0.28);
+      g.fillTriangle(x + radius * 0.78, y, x + radius * 0.38, y - radius * 0.28, x + radius * 0.38, y + radius * 0.28);
     } else {
-      g.fillTriangle(0, -r - 21, -15, -r + 1, 15, -r + 1).strokeTriangle(0, -r - 21, -15, -r + 1, 15, -r + 1);
-      g.fillTriangle(0, r + 21, -15, r - 1, 15, r - 1).strokeTriangle(0, r + 21, -15, r - 1, 15, r - 1);
-      g.lineStyle(3, 0xffffff, 0.72).lineBetween(0, -r - 12, 0, -r - 2).lineBetween(0, r + 12, 0, r + 2);
+      g.lineBetween(x, y - radius * 0.58, x, y + radius * 0.58);
+      g.fillTriangle(x, y - radius * 0.78, x - radius * 0.28, y - radius * 0.38, x + radius * 0.28, y - radius * 0.38);
+      g.fillTriangle(x, y + radius * 0.78, x - radius * 0.28, y + radius * 0.38, x + radius * 0.28, y + radius * 0.38);
     }
   }
 }

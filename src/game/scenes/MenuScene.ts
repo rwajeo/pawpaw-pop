@@ -28,9 +28,10 @@ export class MenuScene extends BaseScene {
     const stageRecords = Object.values(save.progress.stages);
     const best = Math.max(save.progress.endlessBestScore, stageRecords.reduce((highest, stage) => Math.max(highest, stage.bestScore), 0));
     const completed = stageRecords.filter((stage) => stage.completed).length;
+    const primaryLevel = this.getPrimaryLevel();
     this.drawRecordCard(best, completed, save.progress.totalStars);
 
-    this.addStartButton();
+    this.addStartButton(primaryLevel);
     this.addButton(340, 1375, '설정', () => this.fadeTo('SettingsScene'), {
       width: 350, height: 112, color: 0x705ce8, color2: 0x2e83c8, textColor: '#ffffff', fontSize: 38,
     });
@@ -38,8 +39,15 @@ export class MenuScene extends BaseScene {
       width: 390, height: 112, color: 0xffa33d, color2: 0xe95f78, textColor: '#ffffff', fontSize: 36,
     });
 
-    this.input.keyboard?.once('keydown-ENTER', () => this.fadeTo('StageSelectScene'));
-    this.input.keyboard?.once('keydown-SPACE', () => this.fadeTo('StageSelectScene'));
+    this.input.keyboard?.once('keydown-ENTER', () => this.fadeTo('GameScene', { stageId: primaryLevel }));
+    this.input.keyboard?.once('keydown-SPACE', () => this.fadeTo('GameScene', { stageId: primaryLevel }));
+  }
+
+  private getPrimaryLevel(): number {
+    const progress = saveSystem.getData().progress;
+    const hasCompletedLevel = Object.values(progress.stages).some((stage) => stage.completed);
+    const level = hasCompletedLevel ? progress.unlockedStage : 1;
+    return Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
   }
 
   private drawHeroStage(): void {
@@ -110,7 +118,7 @@ export class MenuScene extends BaseScene {
     root.add([card, label, score, progress]);
   }
 
-  private addStartButton(): void {
+  private addStartButton(primaryLevel: number): void {
     const x = GAME_WIDTH / 2;
     const y = 1088;
     const width = 780;
@@ -128,7 +136,7 @@ export class MenuScene extends BaseScene {
       fontFamily: UI_FONT, fontSize: '62px', fontStyle: '900', color: '#ffffff',
       stroke: '#1d6f2c', strokeThickness: 8,
     }).setOrigin(0.5).setShadow(0, 7, '#0d4b21', 8, true, true);
-    const tag = this.add.text(0, 54, 'LEVEL MAP', {
+    const tag = this.add.text(0, 54, `LEVEL ${primaryLevel}`, {
       fontFamily: DISPLAY_FONT, fontSize: '24px', fontStyle: '900', color: '#eaffc6',
     }).setOrigin(0.5).setLetterSpacing(4);
     root.add([glow, shadow, plate, label, tag]);
@@ -139,7 +147,7 @@ export class MenuScene extends BaseScene {
     root.on('pointerup', () => {
       root.setScale(1).setY(y);
       void audioSystem.resume().then(() => audioSystem.playSfx('button'));
-      this.fadeTo('StageSelectScene');
+      this.fadeTo('GameScene', { stageId: primaryLevel });
     });
     this.tweens.add({ targets: glow, alpha: { from: 0.6, to: 1 }, scale: { from: 0.99, to: 1.03 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
   }

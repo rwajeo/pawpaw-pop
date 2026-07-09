@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DISPLAY_FONT, GAME_WIDTH, UI_FONT } from '../constants';
+import { MAX_LEVEL } from '../data/stages';
 import { audioSystem } from '../systems/AudioSystem';
 import type { GameMode, StageResult } from '../types';
 import { BaseScene } from './BaseScene';
@@ -10,6 +11,7 @@ interface ResultData extends StageResult {
   reward: number;
   mode?: GameMode;
   survivedSeconds?: number;
+  starThresholds?: readonly [number, number, number];
 }
 
 export class ResultScene extends BaseScene {
@@ -52,11 +54,28 @@ export class ResultScene extends BaseScene {
       860,
       true,
     );
+    if (!isEndless) this.starCriteriaCard(540, 1165, this.result.starThresholds);
 
-    this.addButton(540, 1245, isEndless ? '무한 모드 다시 하기' : '이 레벨 다시 하기', () => this.fadeTo('GameScene', {
+    const nextLevel = Math.min(MAX_LEVEL, this.result.stageId + 1);
+    const canContinue = !isEndless && this.result.success && this.result.stageId < MAX_LEVEL;
+    if (canContinue) {
+      this.addButton(540, 1320, '다음 레벨', () => this.fadeTo('GameScene', { stageId: nextLevel }), {
+        width: 700, color: 0x55dd7b, color2: 0x208ed7, fontSize: 45,
+      });
+      this.addButton(540, 1475, '레벨 선택', () => this.fadeTo('StageSelectScene'), {
+        width: 700, color: 0x7659a7, color2: 0x3aa1d4,
+      });
+      this.addButton(540, 1620, '다시 하기', () => this.fadeTo('GameScene', {
+        stageId: this.result.stageId, mode: this.result.mode ?? 'timed',
+      }), { width: 520, height: 94, color: 0x2f3554, color2: 0x5f4f89, fontSize: 32 });
+      return;
+    }
+
+    const primaryLabel = isEndless ? '무한 모드 다시 하기' : this.result.success ? '이 레벨 다시 하기' : '다시 도전';
+    this.addButton(540, 1320, primaryLabel, () => this.fadeTo('GameScene', {
       stageId: this.result.stageId, mode: this.result.mode ?? 'timed',
-    }), { color: 0x7657b5, color2: 0xe86887 });
-    this.addButton(540, 1415, '레벨 선택', () => this.fadeTo('StageSelectScene'), { color: 0x7659a7 });
+    }), { color: this.result.success ? 0x7657b5 : 0xff8a4d, color2: this.result.success ? 0xe86887 : 0xe84f6f });
+    this.addButton(540, 1490, '레벨 선택', () => this.fadeTo('StageSelectScene'), { color: 0x7659a7, color2: 0x3aa1d4 });
   }
 
   private formatLimit(): string {
@@ -82,6 +101,29 @@ export class ResultScene extends BaseScene {
       fontFamily: DISPLAY_FONT, fontSize: reward ? '45px' : '41px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(0.5).setShadow(0, 5, '#0a0815', 8, true, true);
     root.add([shadow, plate, labelText, valueText]);
+  }
+
+  private starCriteriaCard(x: number, y: number, thresholds?: readonly [number, number, number]): void {
+    const root = this.add.container(x, y);
+    const width = 860;
+    const height = 118;
+    const criteria = thresholds
+      ? `1★ 클리어   2★ ${thresholds[1].toLocaleString('ko-KR')}점   3★ ${thresholds[2].toLocaleString('ko-KR')}점`
+      : '1★ 클리어   2★ 높은 점수   3★ 최고 점수';
+    const shadow = this.add.graphics().fillStyle(0x05040d, 0.35).fillRoundedRect(-width / 2, -height / 2 + 8, width, height, 32);
+    const plate = this.add.graphics()
+      .fillGradientStyle(0x27324f, 0x33405d, 0x24495d, 0x362b56, 0.96)
+      .lineStyle(3, 0xffde76, 0.34)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, 32)
+      .strokeRoundedRect(-width / 2, -height / 2, width, height, 32)
+      .fillStyle(0xffffff, 0.11).fillRoundedRect(-width / 2 + 30, -height / 2 + 18, width - 60, 6, 3);
+    const label = this.add.text(0, -28, '별 기준 · 목표 달성 후 점수 성과로 판정', {
+      fontFamily: UI_FONT, fontSize: '25px', fontStyle: '900', color: '#ffe7a7',
+    }).setOrigin(0.5);
+    const value = this.add.text(0, 22, criteria, {
+      fontFamily: DISPLAY_FONT, fontSize: '34px', fontStyle: '900', color: '#ffffff',
+    }).setOrigin(0.5).setShadow(0, 4, '#090715', 6, true, true);
+    root.add([shadow, plate, label, value]);
   }
 
   private drawResultStar(x: number, y: number, filled: boolean, index: number): void {

@@ -1,14 +1,13 @@
 import Phaser from 'phaser';
-import { BaseScene } from './BaseScene';
 import { DISPLAY_FONT, GAME_WIDTH, UI_FONT } from '../constants';
-import type { Difficulty, GameMode, StageResult } from '../types';
 import { audioSystem } from '../systems/AudioSystem';
+import type { GameMode, StageResult } from '../types';
+import { BaseScene } from './BaseScene';
 
 interface ResultData extends StageResult {
   success: boolean;
   remaining: number;
   reward: number;
-  difficulty?: Difficulty;
   mode?: GameMode;
   survivedSeconds?: number;
 }
@@ -24,9 +23,11 @@ export class ResultScene extends BaseScene {
     audioSystem.setMusicContext('result');
     this.addPremiumBackdrop(this.result.success ? 0xffb852 : 0x8b6cff);
     this.cameras.main.fadeIn(250, 255, 248, 232);
-    this.add.text(GAME_WIDTH / 2, 225, isEndless ? '무한 모드 기록' : this.result.success ? '기록 완료!' : '시간 종료', {
+
+    this.add.text(GAME_WIDTH / 2, 225, isEndless ? '무한 모드 기록' : this.result.success ? '레벨 클리어!' : '시간 종료', {
       fontFamily: DISPLAY_FONT, fontSize: '82px', fontStyle: 'bold', color: '#ffffff', stroke: '#5b43a1', strokeThickness: 14,
     }).setOrigin(0.5).setShadow(0, 10, '#090715', 14, true, true);
+
     if (isEndless) {
       this.add.text(GAME_WIDTH / 2, 420, '∞', {
         fontFamily: DISPLAY_FONT, fontSize: '210px', fontStyle: 'bold', color: '#d9a7ff', stroke: '#563a91', strokeThickness: 10,
@@ -34,18 +35,28 @@ export class ResultScene extends BaseScene {
     } else {
       [340, 540, 740].forEach((x, index) => this.drawResultStar(x, 420, index < this.result.stars, index));
     }
+
     const scoreLabel = this.add.text(GAME_WIDTH / 2, 680, '0', { fontFamily: DISPLAY_FONT, fontSize: '106px', fontStyle: 'bold', color: '#ffffff' })
       .setOrigin(0.5).setShadow(0, 9, '#080612', 14, true, true).setLetterSpacing(-2);
     this.add.text(GAME_WIDTH / 2, 565, '최종 점수', { fontFamily: UI_FONT, fontSize: '34px', fontStyle: 'bold', color: '#c8c2dc' })
       .setOrigin(0.5).setLetterSpacing(2);
     this.tweens.addCounter({ from: 0, to: this.result.score, duration: 850, ease: 'Cubic.Out', onUpdate: (tween) => scoreLabel.setText(Math.floor(tween.getValue() ?? 0).toLocaleString('ko-KR')) });
+
     this.statCard(315, 835, '최고 콤보', `${this.result.bestCombo} COMBO`, 410);
     this.statCard(765, 835, isEndless ? '생존 시간' : '제한 시간', this.formatLimit(), 410);
-    this.statCard(540, 1015, isEndless ? '도달 레벨' : '획득 보상', isEndless ? `LEVEL ${1 + Math.floor((this.result.survivedSeconds ?? 0) / 45)}` : `포포 포인트  ${this.result.reward}`, 860, true);
-    this.addButton(540, 1245, isEndless ? '무한 모드 다시 하기' : '새 퍼즐로 다시 하기', () => this.fadeTo('GameScene', {
-      difficulty: this.result.difficulty ?? 'easy', mode: this.result.mode ?? 'timed',
+    this.statCard(
+      540,
+      1015,
+      isEndless ? '도달 레벨' : this.result.success ? '획득 보상' : '남은 목표',
+      isEndless ? `LEVEL ${1 + Math.floor((this.result.survivedSeconds ?? 0) / 45)}` : this.result.success ? `포포 코인 ${this.result.reward}` : '다시 도전!',
+      860,
+      true,
+    );
+
+    this.addButton(540, 1245, isEndless ? '무한 모드 다시 하기' : '이 레벨 다시 하기', () => this.fadeTo('GameScene', {
+      stageId: this.result.stageId, mode: this.result.mode ?? 'timed',
     }), { color: 0x7657b5, color2: 0xe86887 });
-    this.addButton(540, 1415, '난이도 선택', () => this.fadeTo('StageSelectScene'), { color: 0x7659a7 });
+    this.addButton(540, 1415, '레벨 선택', () => this.fadeTo('StageSelectScene'), { color: 0x7659a7 });
   }
 
   private formatLimit(): string {

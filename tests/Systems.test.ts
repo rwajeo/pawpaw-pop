@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDifficultyChallenge, createEndlessChallenge, DIFFICULTY_OPTIONS } from '../src/game/data/difficulties';
+import { createEndlessChallenge } from '../src/game/data/difficulties';
+import { createStageChallenge, MAX_LEVEL, STAGES } from '../src/game/data/stages';
 import { SaveSystem } from '../src/game/systems/SaveSystem';
 import { ScoreSystem } from '../src/game/systems/ScoreSystem';
 
@@ -16,26 +17,28 @@ class MemoryStorage implements Storage {
 afterEach(() => { Reflect.deleteProperty(globalThis, 'localStorage'); });
 
 describe('systems and data', () => {
-  it('offers four difficulty modes instead of a stage ladder', () => {
-    expect(DIFFICULTY_OPTIONS.map((option) => option.label)).toEqual(['EASY', 'MEDIUM', 'HARD', 'VERY HARD']);
+  it('offers a level progression instead of difficulty cards', () => {
+    expect(STAGES).toHaveLength(MAX_LEVEL);
+    expect(STAGES[0]?.id).toBe(1);
+    expect(STAGES.at(-1)?.id).toBe(MAX_LEVEL);
   });
 
   it('creates a different puzzle seed for every run while keeping explicit runs reproducible', () => {
-    const first = createDifficultyChallenge('medium');
-    const second = createDifficultyChallenge('medium');
+    const first = createStageChallenge(6);
+    const second = createStageChallenge(6);
     expect(first.seed).not.toBe(second.seed);
-    expect(createDifficultyChallenge('hard', 'replayable')).toEqual(createDifficultyChallenge('hard', 'replayable'));
+    expect(createStageChallenge(9, 'replayable')).toEqual(createStageChallenge(9, 'replayable'));
   });
 
-  it('scales character variety and mechanics by difficulty', () => {
-    const easy = createDifficultyChallenge('easy', 'easy-check');
-    const veryHard = createDifficultyChallenge('veryHard', 'hard-check');
-    expect(easy.characterPool).toHaveLength(4);
-    expect(veryHard.characterPool).toHaveLength(7);
-    expect(veryHard.timeLimit).toBeLessThan(easy.timeLimit ?? 0);
-    expect(easy.moves).toBeUndefined();
-    expect(veryHard.moves).toBeUndefined();
-    expect(veryHard.obstacles.length).toBeGreaterThan(0);
+  it('scales character variety and mechanics by level', () => {
+    const early = createStageChallenge(1, 'early-check');
+    const late = createStageChallenge(MAX_LEVEL, 'late-check');
+    expect(early.characterPool).toHaveLength(4);
+    expect(late.characterPool).toHaveLength(7);
+    expect(late.timeLimit).toBeLessThan(early.timeLimit ?? 0);
+    expect(early.moves).toBeUndefined();
+    expect(late.moves).toBeUndefined();
+    expect(late.obstacles.length).toBeGreaterThan(0);
   });
 
   it('creates reproducible endless survival runs', () => {

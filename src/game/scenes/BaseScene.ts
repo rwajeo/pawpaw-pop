@@ -15,88 +15,72 @@ export interface ButtonOptions {
 export class BaseScene extends Phaser.Scene {
   protected addPremiumBackdrop(accent = 0x8067ff): void {
     const background = this.add.graphics();
-    background.fillGradientStyle(0x17132f, 0x231744, 0x092b3c, 0x11192f, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    background.fillGradientStyle(accent, 0x6551b7, 0x2b7f91, 0x23596e, 0.13)
-      .fillEllipse(540, 170, 1320, 420);
-    background.fillStyle(0xffffff, 0.035).fillEllipse(540, 115, 980, 210);
+    background.fillGradientStyle(0x17183c, 0x292053, 0x0d4661, 0x102438, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    background.fillGradientStyle(accent, 0xff7db4, 0x55d8ff, 0x30d7a7, 0.18).fillEllipse(540, 128, 1340, 470);
+    background.fillStyle(0xffffff, 0.045).fillEllipse(540, 106, 980, 220);
+    background.fillStyle(0xffeaa6, 0.09).fillEllipse(955, 210, 280, 280);
+    background.fillStyle(0x79f7e1, 0.07).fillEllipse(120, 520, 420, 320);
 
-    background.fillStyle(accent, 0.075).fillPoints([
-      new Phaser.Geom.Point(-120, 430), new Phaser.Geom.Point(170, 255), new Phaser.Geom.Point(430, 350),
-      new Phaser.Geom.Point(720, 205), new Phaser.Geom.Point(1210, 360), new Phaser.Geom.Point(1210, 570),
-      new Phaser.Geom.Point(760, 420), new Phaser.Geom.Point(420, 515), new Phaser.Geom.Point(-120, 610),
+    background.fillGradientStyle(0x4b39a4, 0x6d5ced, 0x22a4c0, 0x248c9c, 0.2).fillPoints([
+      new Phaser.Geom.Point(-130, 420), new Phaser.Geom.Point(130, 250), new Phaser.Geom.Point(365, 345),
+      new Phaser.Geom.Point(615, 230), new Phaser.Geom.Point(875, 330), new Phaser.Geom.Point(1220, 245),
+      new Phaser.Geom.Point(1220, 620), new Phaser.Geom.Point(910, 520), new Phaser.Geom.Point(640, 610),
+      new Phaser.Geom.Point(360, 520), new Phaser.Geom.Point(-130, 690),
     ], true);
-    background.fillStyle(0x49d4cb, 0.055).fillPoints([
-      new Phaser.Geom.Point(-100, 620), new Phaser.Geom.Point(260, 430), new Phaser.Geom.Point(560, 520),
-      new Phaser.Geom.Point(870, 380), new Phaser.Geom.Point(1180, 520), new Phaser.Geom.Point(1180, 715),
-      new Phaser.Geom.Point(780, 585), new Phaser.Geom.Point(390, 690), new Phaser.Geom.Point(-100, 760),
+    background.fillGradientStyle(0x2a4166, 0x264f6d, 0x123852, 0x17354e, 0.92).fillPoints([
+      new Phaser.Geom.Point(-90, 1390), new Phaser.Geom.Point(150, 1185), new Phaser.Geom.Point(335, 1310),
+      new Phaser.Geom.Point(560, 1070), new Phaser.Geom.Point(760, 1315), new Phaser.Geom.Point(985, 1115),
+      new Phaser.Geom.Point(1180, 1315), new Phaser.Geom.Point(1180, 1920), new Phaser.Geom.Point(-90, 1920),
     ], true);
-
-    background.fillGradientStyle(0x243653, 0x273451, 0x172d42, 0x1d2940, 0.88).fillPoints([
-      new Phaser.Geom.Point(-80, 1420), new Phaser.Geom.Point(170, 1160), new Phaser.Geom.Point(345, 1330),
-      new Phaser.Geom.Point(560, 1060), new Phaser.Geom.Point(770, 1320), new Phaser.Geom.Point(980, 1110),
-      new Phaser.Geom.Point(1160, 1340), new Phaser.Geom.Point(1160, 1920), new Phaser.Geom.Point(-80, 1920),
-    ], true);
-    background.fillGradientStyle(0x132f43, 0x172b42, 0x0b2233, 0x102238, 0.94).fillPoints([
-      new Phaser.Geom.Point(-100, 1640), new Phaser.Geom.Point(180, 1430), new Phaser.Geom.Point(390, 1570),
-      new Phaser.Geom.Point(650, 1370), new Phaser.Geom.Point(840, 1550), new Phaser.Geom.Point(1180, 1390),
+    background.fillGradientStyle(0x153147, 0x173a50, 0x0b2233, 0x102238, 0.98).fillPoints([
+      new Phaser.Geom.Point(-100, 1610), new Phaser.Geom.Point(175, 1425), new Phaser.Geom.Point(390, 1565),
+      new Phaser.Geom.Point(650, 1375), new Phaser.Geom.Point(850, 1560), new Phaser.Geom.Point(1180, 1400),
       new Phaser.Geom.Point(1180, 1920), new Phaser.Geom.Point(-100, 1920),
     ], true);
-    background.fillStyle(0x071a29, 0.54).fillPoints([
-      new Phaser.Geom.Point(-100, 1800), new Phaser.Geom.Point(210, 1610), new Phaser.Geom.Point(500, 1770),
-      new Phaser.Geom.Point(780, 1580), new Phaser.Geom.Point(1180, 1730), new Phaser.Geom.Point(1180, 1920),
+    background.fillStyle(0x071a29, 0.62).fillPoints([
+      new Phaser.Geom.Point(-100, 1800), new Phaser.Geom.Point(210, 1615), new Phaser.Geom.Point(500, 1770),
+      new Phaser.Geom.Point(780, 1585), new Phaser.Geom.Point(1180, 1735), new Phaser.Geom.Point(1180, 1920),
       new Phaser.Geom.Point(-100, 1920),
     ], true);
 
     const atmosphere = this.add.graphics();
     const rng = new Phaser.Math.RandomDataGenerator([`${this.scene.key}-premium-backdrop`]);
-    for (let index = 0; index < 32; index += 1) {
-      const x = rng.between(45, GAME_WIDTH - 45);
-      const y = rng.between(65, 1460);
-      const size = rng.between(2, 6);
-      const color = index % 4 === 0 ? accent : index % 3 === 0 ? 0x74e8de : 0xffffff;
-      atmosphere.fillStyle(color, rng.realInRange(0.18, 0.48)).fillPoints([
-        new Phaser.Geom.Point(x, y - size), new Phaser.Geom.Point(x + size * 0.55, y),
-        new Phaser.Geom.Point(x, y + size), new Phaser.Geom.Point(x - size * 0.55, y),
+    for (let index = 0; index < 42; index += 1) {
+      const x = rng.between(36, GAME_WIDTH - 36);
+      const y = rng.between(58, 1500);
+      const size = rng.between(3, 9);
+      const color = index % 5 === 0 ? 0xffe28a : index % 4 === 0 ? accent : index % 3 === 0 ? 0x74e8de : 0xffffff;
+      atmosphere.fillStyle(color, rng.realInRange(0.16, 0.5)).fillPoints([
+        new Phaser.Geom.Point(x, y - size), new Phaser.Geom.Point(x + size * 0.62, y),
+        new Phaser.Geom.Point(x, y + size), new Phaser.Geom.Point(x - size * 0.62, y),
       ], true);
     }
-    atmosphere.lineStyle(2, 0xffffff, 0.035).beginPath().moveTo(80, 980).lineTo(340, 900).lineTo(590, 970).lineTo(910, 850).strokePath();
-    this.tweens.add({ targets: atmosphere, alpha: { from: 0.55, to: 1 }, y: { from: -4, to: 6 }, duration: 3200, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    atmosphere.lineStyle(4, 0xffffff, 0.045).beginPath().moveTo(80, 995).lineTo(340, 900).lineTo(590, 970).lineTo(910, 850).strokePath();
+    atmosphere.lineStyle(2, 0x9ef8ff, 0.05).beginPath().moveTo(145, 1210).lineTo(390, 1110).lineTo(670, 1185).lineTo(950, 1060).strokePath();
+    this.tweens.add({ targets: atmosphere, alpha: { from: 0.58, to: 1 }, y: { from: -5, to: 7 }, duration: 3400, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
   }
 
   protected addBackdrop(accent = 0xffd8cc): void {
-    const background = this.add.graphics();
-    background.fillGradientStyle(0xfff9e9, 0xfff4e6, 0xeaf8eb, 0xe8f3ff, 1);
-    background.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    const rng = new Phaser.Math.RandomDataGenerator([this.scene.key]);
-    for (let i = 0; i < 24; i += 1) {
-      const x = rng.between(20, GAME_WIDTH - 20);
-      const y = rng.between(30, GAME_HEIGHT - 30);
-      const radius = rng.between(8, 34);
-      background.fillStyle(i % 3 === 0 ? accent : 0xffffff, i % 3 === 0 ? 0.14 : 0.28);
-      background.fillCircle(x, y, radius);
-    }
-    this.tweens.add({
-      targets: background,
-      alpha: { from: 0.88, to: 1 },
-      duration: 2400,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.InOut',
-    });
+    this.addPremiumBackdrop(accent);
   }
 
   protected addTopBar(title: string, onBack?: () => void): void {
     const bar = this.add.graphics();
-    bar.fillStyle(0x4a3a55, 0.12).fillRoundedRect(22, 24, GAME_WIDTH - 44, 158, 46);
-    bar.fillStyle(0xffffff, 0.9).lineStyle(4, 0xffffff, 0.9)
-      .fillRoundedRect(22, 14, GAME_WIDTH - 44, 158, 46).strokeRoundedRect(22, 14, GAME_WIDTH - 44, 158, 46);
-    this.add.text(GAME_WIDTH / 2, 100, title, {
+    bar.fillStyle(0x05040d, 0.4).fillRoundedRect(28, 33, GAME_WIDTH - 56, 144, 42);
+    bar.fillGradientStyle(0x3c315f, 0x32385b, 0x1f4b61, 0x2a2d50, 0.98)
+      .lineStyle(3, 0xffffff, 0.18)
+      .fillRoundedRect(28, 18, GAME_WIDTH - 56, 144, 42)
+      .strokeRoundedRect(28, 18, GAME_WIDTH - 56, 144, 42)
+      .fillStyle(0xffffff, 0.1).fillRoundedRect(68, 42, GAME_WIDTH - 136, 6, 3);
+    this.add.text(GAME_WIDTH / 2, 91, title, {
       fontFamily: UI_FONT,
-      fontSize: '54px',
-      fontStyle: 'bold',
-      color: '#513b59',
-    }).setOrigin(0.5);
-    if (onBack) this.addButton(82, 100, '‹', onBack, { width: 100, height: 100, color: 0xffffff, textColor: '#513b59', fontSize: 64 });
+      fontSize: '58px',
+      fontStyle: '900',
+      color: '#ffffff',
+      stroke: '#34264d',
+      strokeThickness: 8,
+    }).setOrigin(0.5).setShadow(0, 7, '#070614', 10, true, true);
+    if (onBack) this.addButton(88, 91, '‹', onBack, { width: 104, height: 96, color: 0x6f63e8, color2: 0x2a9ec0, textColor: '#ffffff', fontSize: 66 });
   }
 
   protected addButton(
@@ -109,35 +93,40 @@ export class BaseScene extends Phaser.Scene {
     const width = options.width ?? 620;
     const height = options.height ?? 118;
     const container = this.add.container(x, y);
-    const radius = Math.min(38, height * 0.32);
+    const radius = Math.min(44, height * 0.34);
     const topColor = options.color ?? COLORS.coral;
     const bottomColor = options.color2 ?? topColor;
+    const rim = Phaser.Display.Color.ValueToColor(topColor).darken(22).color;
+    const deep = Phaser.Display.Color.ValueToColor(bottomColor).darken(34).color;
     const shadow = this.add.graphics()
-      .fillStyle(0x080613, 0.32).fillRoundedRect(-width / 2, -height / 2 + 13, width, height, radius);
+      .fillStyle(0x05040d, 0.42).fillRoundedRect(-width / 2 + 6, -height / 2 + 18, width - 12, height, radius)
+      .fillStyle(0x000000, 0.15).fillRoundedRect(-width / 2 + 26, height / 2 - 6, width - 52, 18, 12);
     const plate = this.add.graphics()
-      .fillGradientStyle(topColor, topColor, bottomColor, bottomColor, 1)
-      .lineStyle(3, 0xffffff, 0.34).fillRoundedRect(-width / 2, -height / 2, width, height, radius)
-      .strokeRoundedRect(-width / 2, -height / 2, width, height, radius)
-      .lineStyle(2, 0xffffff, 0.1).strokeRoundedRect(-width / 2 + 7, -height / 2 + 7, width - 14, height - 14, radius - 5);
-    plate.fillStyle(0xffffff, 0.13).fillRoundedRect(-width / 2 + 18, -height / 2 + 10, width - 36, 5, 3);
-    const text = this.add.text(0, -2, `${options.icon ? `${options.icon}  ` : ''}${label}`, {
+      .fillStyle(deep, 1).fillRoundedRect(-width / 2, -height / 2 + 10, width, height, radius)
+      .fillGradientStyle(topColor, Phaser.Display.Color.ValueToColor(topColor).lighten(10).color, bottomColor, deep, 1)
+      .lineStyle(5, rim, 0.92)
+      .fillRoundedRect(-width / 2, -height / 2, width, height - 10, radius)
+      .strokeRoundedRect(-width / 2, -height / 2, width, height - 10, radius)
+      .lineStyle(3, 0xffffff, 0.34).strokeRoundedRect(-width / 2 + 8, -height / 2 + 8, width - 16, height - 26, radius - 7)
+      .fillStyle(0xffffff, 0.18).fillRoundedRect(-width / 2 + 32, -height / 2 + 17, width - 64, 8, 4);
+    const text = this.add.text(0, -5, `${options.icon ? `${options.icon}  ` : ''}${label}`, {
       fontFamily: UI_FONT,
-      fontSize: `${options.fontSize ?? 38}px`,
-      fontStyle: 'bold',
+      fontSize: `${options.fontSize ?? 40}px`,
+      fontStyle: '900',
       color: options.textColor ?? '#ffffff',
       align: 'center',
     }).setOrigin(0.5).setLetterSpacing(-1);
     const darkText = ['#513b59', '#5f4c67', '#a24f5a'].includes(options.textColor ?? '');
-    text.setShadow(0, darkText ? 2 : 4, darkText ? '#ffffff' : '#57394f', darkText ? 2 : 4, true, true);
+    text.setShadow(0, darkText ? 2 : 5, darkText ? '#ffffff' : '#3d244f', darkText ? 2 : 5, true, true);
     container.add([shadow, plate, text]);
     container.setData('label', text);
     container.setSize(width, height).setInteractive({ useHandCursor: true });
-    container.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.025, duration: 90 }));
-    container.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, y: y, duration: 100 }));
+    container.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.03, duration: 90, ease: 'Sine.Out' }));
+    container.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, y, duration: 100, ease: 'Sine.Out' }));
     container.on('pointerdown', () => {
       void audioSystem.resumeAndStartMusic();
-      container.setScale(0.97);
-      container.y = y + 7;
+      container.setScale(0.965);
+      container.y = y + 8;
     });
     container.on('pointerup', () => {
       container.setScale(1);
@@ -150,12 +139,15 @@ export class BaseScene extends Phaser.Scene {
 
   protected pill(x: number, y: number, label: string, value: string, width = 260): Phaser.GameObjects.Container {
     const root = this.add.container(x, y);
-    const bg = this.add.graphics().fillStyle(0xffffff, 0.86).fillRoundedRect(-width / 2, -46, width, 92, 30);
-    const caption = this.add.text(-width / 2 + 24, -18, label, {
-      fontFamily: UI_FONT, fontSize: '22px', color: '#806d83', fontStyle: 'bold',
+    const bg = this.add.graphics()
+      .fillStyle(0x05040d, 0.24).fillRoundedRect(-width / 2, -40, width, 96, 30)
+      .fillGradientStyle(0xffffff, 0xffffff, 0xe7f6ff, 0xf4e9ff, 0.92)
+      .lineStyle(2, 0xffffff, 0.52).fillRoundedRect(-width / 2, -50, width, 96, 30).strokeRoundedRect(-width / 2, -50, width, 96, 30);
+    const caption = this.add.text(-width / 2 + 24, -22, label, {
+      fontFamily: UI_FONT, fontSize: '22px', color: '#806d83', fontStyle: '900',
     });
-    const number = this.add.text(-width / 2 + 24, 10, value, {
-      fontFamily: UI_FONT, fontSize: '32px', color: '#513b59', fontStyle: 'bold',
+    const number = this.add.text(-width / 2 + 24, 9, value, {
+      fontFamily: UI_FONT, fontSize: '34px', color: '#513b59', fontStyle: '900',
     });
     root.add([bg, caption, number]);
     return root;

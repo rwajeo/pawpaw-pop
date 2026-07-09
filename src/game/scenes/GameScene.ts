@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { BoardModel, SeededRandom, type Board, type Position } from '../board';
 import { DISPLAY_FONT, UI_FONT } from '../constants';
 import { CHARACTERS } from '../data/characters';
-import { createDifficultyChallenge, createEndlessChallenge } from '../data/difficulties';
-import { getStarsForScore } from '../data/stages';
+import { createEndlessChallenge } from '../data/difficulties';
+import { createStageChallenge, getStarsForScore, MAX_LEVEL } from '../data/stages';
 import { FloatingTextPool } from '../entities/FloatingTextPool';
 import { ParticlePool } from '../entities/ParticlePool';
 import { Tile as TileView, type TileSpecial } from '../entities/Tile';
@@ -12,11 +12,11 @@ import { audioSystem } from '../systems/AudioSystem';
 import { GoalSystem } from '../systems/GoalSystem';
 import { hapticSystem } from '../systems/HapticSystem';
 import { saveSystem } from '../systems/SaveSystem';
-import type { Difficulty, GameMode, ObstacleType, SpecialTileType, StageDefinition } from '../types';
+import type { GameMode, ObstacleType, SpecialTileType, StageDefinition } from '../types';
 import { TutorialOverlay } from '../ui/TutorialOverlay';
 import { BaseScene } from './BaseScene';
 
-interface GameData { difficulty?: Difficulty; mode?: GameMode; }
+interface GameData { stageId?: number; levelId?: number; mode?: GameMode; }
 interface RuntimeObstacle { type: ObstacleType; row: number; col: number; hp: number; view?: Phaser.GameObjects.Container; }
 interface ThunderTotemState { active: boolean; nextScore: number; view?: Phaser.GameObjects.Container; }
 
@@ -31,7 +31,6 @@ const keyOf = ({ row, col }: Position): string => `${row}:${col}`;
 export class GameScene extends BaseScene {
   private stage!: StageDefinition;
   private stageId = 1;
-  private difficulty: Difficulty = 'easy';
   private mode: GameMode = 'timed';
   private model!: BoardModel;
   private goals!: GoalSystem;
@@ -71,14 +70,15 @@ export class GameScene extends BaseScene {
   public constructor() { super('GameScene'); }
 
   public init(data: GameData): void {
-    this.difficulty = data.difficulty ?? 'easy';
     this.mode = data.mode ?? 'timed';
+    const unlocked = saveSystem.getData().progress.unlockedStage;
+    this.stageId = Math.min(MAX_LEVEL, Math.max(1, Math.floor(data.levelId ?? data.stageId ?? unlocked)));
   }
 
   public create(): void {
     this.addPremiumBackdrop(0x6555c9);
     this.cameras.main.fadeIn(180, 255, 248, 232);
-    this.stage = this.mode === 'endless' ? createEndlessChallenge() : createDifficultyChallenge(this.difficulty);
+    this.stage = this.mode === 'endless' ? createEndlessChallenge() : createStageChallenge(this.stageId);
     this.stageId = this.stage.id;
     const allowedKinds = (this.stage.characterPool ?? CHARACTERS.map((character) => character.id))
       .map((id) => CHARACTERS.findIndex((character) => character.id === id))
@@ -92,7 +92,7 @@ export class GameScene extends BaseScene {
     this.score = 0;
     this.bestCombo = 0;
     this.shufflesLeft = 2;
-    this.thunderTotem = { active: false, nextScore: 6000 };
+    this.thunderTotem = { active: false, nextScore: Math.max(4200, Math.min(9000, this.stage.starThresholds[0])) };
     this.shuffleButton = undefined;
     this.locked = false;
     this.paused = false;
@@ -104,7 +104,7 @@ export class GameScene extends BaseScene {
     const settings = saveSystem.getData().settings;
     audioSystem.applySettings(settings);
     hapticSystem.setEnabled(settings.hapticsEnabled);
-    this.particlePool = new ParticlePool(this, settings.reducedParticles ? 24 : 96, settings.reducedParticles ? 40 : 180);
+    this.particlePool = new ParticlePool(this, settings.reducedParticles ? 30 : 120, settings.reducedParticles ? 50 : 260);
     this.floatingPool = new FloatingTextPool(this, 16);
 
     this.createHud();
@@ -399,9 +399,6 @@ export class GameScene extends BaseScene {
     const swapImpact = swappedSpecials.includes('rainbow') ? 'rainbow'
       : swappedSpecials.includes('bomb') ? 'bomb'
         : swappedSpecials.some((special) => special === 'row' || special === 'column') ? 'rocket' : undefined;
-    const firstCascade = result.cascades[0];
-    const strongFirstMatch = firstCascade?.matches.groups.some((group) => group.cells.length >= 4 || group.shape !== 'three') ?? false;
-    const activateThunder = this.thunderTotem.active && (strongFirstMatch || swapImpact !== undefined);
     this.timeAwardedThisMove = false;
     let cascade = 0;
     for (const step of result.cascades) {
@@ -424,12 +421,6 @@ export class GameScene extends BaseScene {
     const affectedColumns = new Set<number>([from.col, to.col]);
     result.cascades.forEach((step) => step.removed.forEach((position) => affectedColumns.add(position.col)));
     this.displayBoardColumns(result.board, affectedColumns, true);
-    if (activateThunder) {
-      const thunderBonus = await this.activateThunderTotem();
-      this.score += thunderBonus;
-      this.goals.apply({ type: 'score', value: this.score, absolute: true });
-      this.displayBoardColumns(this.model.board, new Set(Array.from({ length: 8 }, (_, index) => index)), true);
-    }
     this.maybeAwardThunderTotem();
     this.refreshObstacles();
     this.refreshHud();
@@ -477,9 +468,9 @@ export class GameScene extends BaseScene {
     const fullRow = [...rowCounts.entries()].find(([, count]) => count >= 8)?.[0];
     const fullColumn = [...colCounts.entries()].find(([, count]) => count >= 8)?.[0];
     const impactKind = forcedImpact ?? (removed.length >= 40 ? 'rainbow' : removed.length >= 16 ? 'bomb' : fullRow !== undefined || fullColumn !== undefined ? 'rocket' : removed.length === 4 ? 'match4' : 'match3');
-    const particleBudget = Math.min(150, 58 + Math.min(combo, 6) * 14 + (impactKind === 'rainbow' ? 26 : impactKind === 'bomb' ? 18 : 0));
-    const perCellParticles = Math.max(3, Math.min(8, Math.floor(particleBudget * 0.55 / Math.max(1, removed.length))));
-    const flashStride = Math.max(1, Math.ceil(removed.length / 14));
+    const particleBudget = Math.min(230, 78 + Math.min(combo, 7) * 20 + (impactKind === 'rainbow' ? 42 : impactKind === 'bomb' ? 34 : impactKind === 'rocket' ? 24 : 0));
+    const perCellParticles = Math.max(4, Math.min(11, Math.floor(particleBudget * 0.6 / Math.max(1, removed.length))));
+    const flashStride = Math.max(1, Math.ceil(removed.length / 20));
     removed.forEach((position, removedIndex) => {
       const point = this.cellPosition(position);
       const view = this.views.get(keyOf(position));
@@ -492,11 +483,11 @@ export class GameScene extends BaseScene {
       if (!settings.reducedParticles) this.particlePool.burst(worldX, worldY, {
         count: perCellParticles,
         colors,
-        speed: { min: 105, max: impactKind === 'bomb' ? 285 : 220 },
-        lifespan: impactKind === 'bomb' ? 620 : 470,
-        size: { min: 3, max: impactKind === 'bomb' ? 9 : 7 },
+        speed: { min: 125, max: impactKind === 'bomb' || impactKind === 'rainbow' ? 360 : 275 },
+        lifespan: impactKind === 'bomb' || impactKind === 'rainbow' ? 720 : 540,
+        size: { min: 4, max: impactKind === 'bomb' || impactKind === 'rainbow' ? 11 : 8 },
       });
-      if (removedIndex % flashStride === 0) this.createPopFlash(worldX, worldY, definition?.bodyColor ?? 0xff9bb5, impactKind === 'match3' ? 0.9 : 1.18);
+      if (removedIndex % flashStride === 0) this.createPopFlash(worldX, worldY, definition?.bodyColor ?? 0xff9bb5, impactKind === 'match3' ? 1.08 : 1.46);
       if (character !== null && character !== undefined) this.goals.apply({ type: 'collect', characterId: CHARACTERS[character]?.id ?? 'momo' });
     });
     this.attackObstacles(removed);
@@ -506,16 +497,17 @@ export class GameScene extends BaseScene {
       y: (average.row / Math.max(1, removed.length)) * CELL + CELL / 2,
     };
     if (!settings.reducedParticles) this.particlePool.burst(BOARD_X + p.x, BOARD_Y + p.y, {
-      count: Math.min(48, Math.max(18, Math.floor(particleBudget * 0.34))),
+      count: Math.min(78, Math.max(28, Math.floor(particleBudget * 0.42))),
       colors: [0xffffff, 0xffe17b, impactKind === 'rainbow' ? 0xc69cff : 0xff8fb3, 0x85eaff],
-      speed: { min: 150, max: 330 }, lifespan: 680, gravityY: 75, size: { min: 4, max: 10 },
+      speed: { min: 175, max: 410 }, lifespan: 780, gravityY: 82, size: { min: 5, max: 12 },
     });
     if (!settings.reducedMotion) this.createMatchTrace(removed, impactKind);
+    if (!settings.reducedMotion) this.createBingoSlam(removed, impactKind, combo, BOARD_X + p.x, BOARD_Y + p.y);
     this.createImpactWave(BOARD_X + p.x, BOARD_Y + p.y, impactKind, combo, fullRow, fullColumn);
     this.floatingPool.show(BOARD_X + p.x, BOARD_Y + p.y, points, {
       color: combo >= 3 ? '#fff0a6' : '#ffffff', fontSize: 38 + Math.min(combo, 5) * 3, duration: 820, rise: 64,
     });
-    const phrases = ['좋아!', '멋져!', '대단해!', '포포 콤보!', '환상적이야!', '믿을 수 없어!'];
+    const phrases = ['좋아!', '시원해!', '대폭발!', '포포 콤보!', '폭풍 연쇄!', '천둥급 콤보!'];
     if (combo >= 2) {
       this.flashStatus(phrases[Math.min(phrases.length - 1, combo - 2)] ?? '좋아!', true, isFinalCascade ? 1180 : 760);
       this.createComboCelebration(combo, BOARD_X + p.x, BOARD_Y + p.y);
@@ -526,27 +518,27 @@ export class GameScene extends BaseScene {
     hapticSystem.playMatch(hapticCue, combo);
     this.addMatchTime(impactKind, BOARD_X + p.x, BOARD_Y + p.y);
     if (settings.screenShake && !settings.reducedMotion) {
-      const strength = impactKind === 'bomb' ? 0.006 : impactKind === 'rainbow' ? 0.005 : Math.min(0.0038, 0.0012 + combo * 0.00035);
-      this.cameras.main.shake(impactKind === 'bomb' ? 135 : 90, strength);
+      const strength = impactKind === 'bomb' ? 0.008 : impactKind === 'rainbow' ? 0.007 : Math.min(0.0054, 0.0017 + combo * 0.0005);
+      this.cameras.main.shake(impactKind === 'bomb' || impactKind === 'rainbow' ? 180 : 120, strength);
     }
-    await new Promise<void>((resolve) => this.time.delayedCall(settings.reducedMotion ? 70 : impactKind === 'bomb' ? 230 : 175, () => resolve()));
+    await new Promise<void>((resolve) => this.time.delayedCall(settings.reducedMotion ? 70 : impactKind === 'bomb' || impactKind === 'rainbow' ? 280 : 210, () => resolve()));
   }
 
   private createPopFlash(x: number, y: number, color: number, intensity: number): void {
     const flash = this.add.graphics().setPosition(x, y).setDepth(90).setBlendMode(Phaser.BlendModes.ADD);
-    flash.fillStyle(color, 0.46 * intensity).fillCircle(0, 0, 51);
-    flash.fillStyle(0xffffff, 0.94 * intensity).fillCircle(0, 0, 20);
-    flash.lineStyle(7, 0xffffff, 0.92 * intensity).strokeCircle(0, 0, 32);
-    flash.lineStyle(12, color, 0.32 * intensity).strokeCircle(0, 0, 46);
-    for (let index = 0; index < 12; index += 1) {
-      const angle = index * Math.PI / 6 + 0.15;
-      const inner = index % 2 === 0 ? 31 : 39;
-      const outer = index % 2 === 0 ? 76 : 60;
-      flash.lineStyle(index % 2 === 0 ? 6 : 3, index % 3 === 0 ? 0xffffff : color, 0.9)
+    flash.fillStyle(color, 0.5 * intensity).fillCircle(0, 0, 58);
+    flash.fillStyle(0xffffff, 0.98 * intensity).fillCircle(0, 0, 23);
+    flash.lineStyle(8, 0xffffff, 0.95 * intensity).strokeCircle(0, 0, 36);
+    flash.lineStyle(15, color, 0.35 * intensity).strokeCircle(0, 0, 54);
+    for (let index = 0; index < 16; index += 1) {
+      const angle = index * Math.PI / 8 + 0.15;
+      const inner = index % 2 === 0 ? 34 : 42;
+      const outer = index % 2 === 0 ? 92 : 70;
+      flash.lineStyle(index % 2 === 0 ? 7 : 4, index % 3 === 0 ? 0xffffff : color, 0.92)
         .lineBetween(Math.cos(angle) * inner, Math.sin(angle) * inner, Math.cos(angle) * outer, Math.sin(angle) * outer);
     }
-    flash.setScale(0.32);
-    this.tweens.add({ targets: flash, scale: 1.82, alpha: 0, angle: 13, duration: 320, ease: 'Expo.Out', onComplete: () => flash.destroy() });
+    flash.setScale(0.28);
+    this.tweens.add({ targets: flash, scale: 2.08, alpha: 0, angle: 18, duration: 380, ease: 'Expo.Out', onComplete: () => flash.destroy() });
   }
 
   private createComboCelebration(combo: number, x: number, y: number): void {
@@ -554,20 +546,21 @@ export class GameScene extends BaseScene {
     const tier = Math.min(6, combo);
     const color = combo >= 5 ? 0xd79cff : combo >= 3 ? 0xffd56a : 0xff8fb3;
     const burst = this.add.graphics().setPosition(x, y).setDepth(97).setBlendMode(Phaser.BlendModes.ADD);
-    for (let index = 0; index < 18; index += 1) {
-      const angle = index * Math.PI / 9;
-      const distance = 74 + (index % 3) * 18;
+    for (let index = 0; index < 28; index += 1) {
+      const angle = index * Math.PI / 14;
+      const distance = 82 + (index % 4) * 22;
       const px = Math.cos(angle) * distance;
       const py = Math.sin(angle) * distance;
-      const size = 6 + (index % 2) * 4;
+      const size = 7 + (index % 3) * 3;
       burst.fillStyle(index % 3 === 0 ? 0xffffff : color, 0.92).fillPoints([
         new Phaser.Geom.Point(px, py - size * 1.7), new Phaser.Geom.Point(px + size, py),
         new Phaser.Geom.Point(px, py + size * 1.7), new Phaser.Geom.Point(px - size, py),
       ], true);
     }
-    burst.lineStyle(5 + tier, color, 0.72).strokeCircle(0, 0, 92);
+    burst.lineStyle(6 + tier, color, 0.78).strokeCircle(0, 0, 98);
+    burst.lineStyle(3, 0xffffff, 0.58).strokeCircle(0, 0, 132);
     burst.setScale(0.4).setAngle(-12);
-    this.tweens.add({ targets: burst, scale: 2.15 + tier * 0.08, angle: 18, alpha: 0, duration: 520, ease: 'Quart.Out', onComplete: () => burst.destroy() });
+    this.tweens.add({ targets: burst, scale: 2.45 + tier * 0.11, angle: 24, alpha: 0, duration: 680, ease: 'Quart.Out', onComplete: () => burst.destroy() });
 
     const comboText = this.add.text(540, 900, `${combo} COMBO`, {
       fontFamily: DISPLAY_FONT,
@@ -585,7 +578,7 @@ export class GameScene extends BaseScene {
       duration: 180,
       ease: 'Back.Out',
       onComplete: () => this.tweens.add({
-        targets: comboText, scale: 0.9, y: 840, alpha: 0, delay: combo >= 5 ? 520 : 340, duration: 260, ease: 'Cubic.In', onComplete: () => comboText.destroy(),
+        targets: comboText, scale: 0.92, y: 830, alpha: 0, delay: combo >= 5 ? 720 : 480, duration: 300, ease: 'Cubic.In', onComplete: () => comboText.destroy(),
       }),
     });
 
@@ -594,6 +587,48 @@ export class GameScene extends BaseScene {
         .lineStyle(16 + tier * 3, color, 0.34).strokeRoundedRect(18, 18, 1044, 1884, 58)
         .lineStyle(4, 0xffffff, 0.48).strokeRoundedRect(31, 31, 1018, 1858, 48);
       this.tweens.add({ targets: edge, alpha: 0, duration: 560, ease: 'Sine.Out', onComplete: () => edge.destroy() });
+    }
+  }
+
+  private createBingoSlam(
+    removed: readonly Position[],
+    kind: 'match3' | 'match4' | 'rocket' | 'bomb' | 'rainbow',
+    combo: number,
+    x: number,
+    y: number,
+  ): void {
+    const color = kind === 'rainbow' ? 0xdca8ff : kind === 'bomb' ? 0xffbc5f : kind === 'rocket' ? 0x73e5ff : 0xff8daf;
+    const tier = Math.min(6, Math.max(1, combo));
+    const gridGlow = this.add.graphics().setDepth(86).setBlendMode(Phaser.BlendModes.ADD);
+    removed.forEach((position) => {
+      const point = this.cellPosition(position);
+      const px = BOARD_X + point.x;
+      const py = BOARD_Y + point.y;
+      gridGlow.fillStyle(color, kind === 'match3' ? 0.14 : 0.22)
+        .fillRoundedRect(px - CELL * 0.42, py - CELL * 0.42, CELL * 0.84, CELL * 0.84, 28);
+      gridGlow.lineStyle(kind === 'match3' ? 3 : 5, 0xffffff, kind === 'match3' ? 0.32 : 0.52)
+        .strokeRoundedRect(px - CELL * 0.39, py - CELL * 0.39, CELL * 0.78, CELL * 0.78, 24);
+    });
+    this.tweens.add({ targets: gridGlow, alpha: 0, duration: 360, ease: 'Sine.Out', onComplete: () => gridGlow.destroy() });
+
+    const slam = this.add.graphics().setPosition(x, y).setDepth(98).setBlendMode(Phaser.BlendModes.ADD);
+    for (let ray = 0; ray < 20; ray += 1) {
+      const angle = ray * Math.PI / 10 + (combo % 2 ? 0.08 : -0.08);
+      const inner = 38 + (ray % 2) * 16;
+      const outer = 138 + tier * 14 + (ray % 3) * 18;
+      slam.lineStyle(ray % 2 === 0 ? 8 : 4, ray % 4 === 0 ? 0xffffff : color, ray % 2 === 0 ? 0.72 : 0.5)
+        .lineBetween(Math.cos(angle) * inner, Math.sin(angle) * inner, Math.cos(angle) * outer, Math.sin(angle) * outer);
+    }
+    slam.fillStyle(0xffffff, 0.42).fillCircle(0, 0, 34);
+    slam.lineStyle(10, color, 0.58).strokeCircle(0, 0, 70);
+    slam.setScale(0.28).setAngle(-14);
+    this.tweens.add({ targets: slam, scale: 1.7 + tier * 0.12, angle: 18, alpha: 0, duration: 460, ease: 'Expo.Out', onComplete: () => slam.destroy() });
+
+    if (removed.length >= 4 || combo >= 3) {
+      const boardPulse = this.add.graphics().setDepth(84).setBlendMode(Phaser.BlendModes.ADD);
+      boardPulse.lineStyle(10 + tier * 2, color, 0.28).strokeRoundedRect(BOARD_X - 10, BOARD_Y - 10, BOARD_PIXELS + 20, BOARD_PIXELS + 20, 38);
+      boardPulse.lineStyle(3, 0xffffff, 0.34).strokeRoundedRect(BOARD_X + 4, BOARD_Y + 4, BOARD_PIXELS - 8, BOARD_PIXELS - 8, 30);
+      this.tweens.add({ targets: boardPulse, alpha: 0, duration: 500, ease: 'Sine.Out', onComplete: () => boardPulse.destroy() });
     }
   }
 
@@ -712,35 +747,71 @@ export class GameScene extends BaseScene {
     if (this.thunderTotem.active || this.score < this.thunderTotem.nextScore) return;
     this.thunderTotem.active = true;
     this.thunderTotem.nextScore += 12000;
-    const root = this.add.container(540, 870).setDepth(125).setScale(2.5).setAlpha(0);
-    const glow = this.add.graphics().fillStyle(0x61dfff, 0.22).fillCircle(0, 0, 48);
+    const root = this.add.container(540, 1284).setDepth(125).setScale(0.72).setAlpha(0);
+    const buttonShadow = this.add.graphics().fillStyle(0x05040d, 0.46).fillRoundedRect(-350, -56, 700, 124, 42);
+    const button = this.add.graphics()
+      .fillGradientStyle(0x2bdfff, 0x6d7dff, 0x7c42ff, 0xff62aa, 1)
+      .lineStyle(4, 0xffffff, 0.62)
+      .fillRoundedRect(-350, -68, 700, 124, 42)
+      .strokeRoundedRect(-350, -68, 700, 124, 42)
+      .fillStyle(0xffffff, 0.18).fillRoundedRect(-316, -45, 632, 7, 4);
+    const glow = this.add.graphics().fillStyle(0x61dfff, 0.25).fillCircle(-236, -6, 54);
     const art = this.add.graphics();
     const stone = [
-      new Phaser.Geom.Point(-23, -31), new Phaser.Geom.Point(-8, -43), new Phaser.Geom.Point(18, -35),
-      new Phaser.Geom.Point(26, -8), new Phaser.Geom.Point(18, 34), new Phaser.Geom.Point(-17, 38), new Phaser.Geom.Point(-27, 4),
+      new Phaser.Geom.Point(-259, -38), new Phaser.Geom.Point(-239, -52), new Phaser.Geom.Point(-211, -41),
+      new Phaser.Geom.Point(-199, -8), new Phaser.Geom.Point(-214, 42), new Phaser.Geom.Point(-252, 44), new Phaser.Geom.Point(-269, 7),
     ];
     art.fillStyle(0x284d70, 1).lineStyle(4, 0xa8efff, 0.96).fillPoints(stone, true).strokePoints(stone, true);
     art.fillStyle(0x62d9eb, 0.3).fillPoints([
-      new Phaser.Geom.Point(-15, -27), new Phaser.Geom.Point(-5, -35), new Phaser.Geom.Point(7, -29), new Phaser.Geom.Point(-9, 23),
+      new Phaser.Geom.Point(-251, -31), new Phaser.Geom.Point(-239, -42), new Phaser.Geom.Point(-225, -34), new Phaser.Geom.Point(-242, 29),
     ], true);
     art.fillStyle(0xffe269, 1).lineStyle(2, 0xffffff, 0.9).fillPoints([
-      new Phaser.Geom.Point(7, -25), new Phaser.Geom.Point(-10, 2), new Phaser.Geom.Point(2, 1),
-      new Phaser.Geom.Point(-6, 25), new Phaser.Geom.Point(16, -5), new Phaser.Geom.Point(4, -4),
+      new Phaser.Geom.Point(-224, -31), new Phaser.Geom.Point(-245, 1), new Phaser.Geom.Point(-231, 0),
+      new Phaser.Geom.Point(-241, 29), new Phaser.Geom.Point(-213, -8), new Phaser.Geom.Point(-228, -6),
     ], true).strokePoints([
-      new Phaser.Geom.Point(7, -25), new Phaser.Geom.Point(-10, 2), new Phaser.Geom.Point(2, 1),
-      new Phaser.Geom.Point(-6, 25), new Phaser.Geom.Point(16, -5), new Phaser.Geom.Point(4, -4),
+      new Phaser.Geom.Point(-224, -31), new Phaser.Geom.Point(-245, 1), new Phaser.Geom.Point(-231, 0),
+      new Phaser.Geom.Point(-241, 29), new Phaser.Geom.Point(-213, -8), new Phaser.Geom.Point(-228, -6),
     ], true);
+    const label = this.add.text(44, -13, '천둥 토템', {
+      fontFamily: DISPLAY_FONT, fontSize: '48px', fontStyle: 'bold', color: '#ffffff',
+      stroke: '#29345f', strokeThickness: 9,
+    }).setOrigin(0.5).setShadow(0, 6, '#070715', 8, true, true);
+    const sub = this.add.text(44, 35, '눌러서 번개 폭풍 발동', {
+      fontFamily: UI_FONT, fontSize: '25px', fontStyle: 'bold', color: '#e7fbff',
+    }).setOrigin(0.5);
     const spark = this.add.graphics().lineStyle(3, 0xffffff, 0.9)
-      .lineBetween(-35, -18, -28, -11).lineBetween(30, -24, 38, -31).lineBetween(31, 20, 40, 25);
-    root.add([glow, art, spark]);
+      .lineBetween(-310, -24, -298, -12).lineBetween(286, -28, 305, -44).lineBetween(292, 28, 318, 37);
+    root.add([buttonShadow, button, glow, art, label, sub, spark]);
     this.relicLayer.add(root);
     this.thunderTotem.view = root;
-    this.tweens.add({ targets: root, x: 432, y: 88, scale: 1, alpha: 1, angle: { from: -10, to: 0 }, duration: 620, ease: 'Back.Out' });
+    root.setSize(700, 124).setInteractive({ useHandCursor: true });
+    root.on('pointerover', () => this.tweens.add({ targets: root, scale: 1.04, duration: 100 }));
+    root.on('pointerout', () => this.tweens.add({ targets: root, scale: 1, duration: 100 }));
+    root.on('pointerdown', () => root.setScale(0.96));
+    root.on('pointerup', () => {
+      root.setScale(1);
+      void this.useThunderTotem();
+    });
+    this.tweens.add({ targets: root, scale: 1, alpha: 1, y: 1312, angle: { from: -2, to: 0 }, duration: 520, ease: 'Back.Out' });
     this.tweens.add({ targets: glow, alpha: { from: 0.25, to: 0.7 }, scale: { from: 0.8, to: 1.25 }, duration: 680, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    this.flashStatus('천둥 토템 획득!', true, 1050);
-    this.floatingPool.show(540, 780, '4매치에 자동 발동', { color: '#d9f8ff', stroke: '#244c70', fontSize: 33, duration: 1200, rise: 72 });
+    this.flashStatus('천둥 토템 획득!', true, 1150);
+    this.floatingPool.show(540, 1210, '원할 때 직접 터뜨리세요', { color: '#d9f8ff', stroke: '#244c70', fontSize: 34, duration: 1250, rise: 72 });
     audioSystem.playSfx('rainbow');
     hapticSystem.play('rainbow');
+  }
+
+  private async useThunderTotem(): Promise<void> {
+    if (!this.thunderTotem.active || this.locked || this.paused || this.ending || this.tutorialActive) return;
+    this.locked = true;
+    void audioSystem.resumeAndStartMusic('stage');
+    const bonus = await this.activateThunderTotem();
+    this.score += bonus;
+    this.goals.apply({ type: 'score', value: this.score, absolute: true });
+    this.displayBoard(this.model.board, true);
+    this.refreshObstacles();
+    this.refreshHud();
+    this.locked = false;
+    this.checkEnd();
   }
 
   private async activateThunderTotem(): Promise<number> {
@@ -750,58 +821,80 @@ export class GameScene extends BaseScene {
     this.thunderTotem.view = undefined;
     if (relicView) {
       this.tweens.killTweensOf(relicView);
-      this.tweens.add({ targets: relicView, x: 540, y: 800, scale: 2.4, alpha: 0, duration: 260, ease: 'Cubic.In', onComplete: () => relicView.destroy() });
+      relicView.disableInteractive();
+      this.tweens.add({ targets: relicView, scale: 1.24, alpha: 0, y: 1220, duration: 210, ease: 'Cubic.In', onComplete: () => relicView.destroy() });
     }
 
     const board = this.model.board;
-    const blocked = new Set(this.obstacles.filter((obstacle) => obstacle.hp > 0).map(keyOf));
-    const centers: Position[] = [];
+    const candidates: Position[] = [];
     board.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
-      if (cell && !cell.special && !blocked.has(`${rowIndex}:${colIndex}`)) centers.push({ row: rowIndex, col: colIndex });
+      if (cell) candidates.push({ row: rowIndex, col: colIndex });
     }));
-    if (centers.length === 0) return 0;
+    if (candidates.length === 0) return 0;
     const random = new SeededRandom(`${this.stage.seed}-thunder-${this.score}-${this.secondsElapsed}`);
-    const center = random.pick(centers);
-    const cross = Array.from({ length: 8 }, (_, index) => [{ row: center.row, col: index }, { row: index, col: center.col }]).flat();
-    const uniqueCross = [...new Map(cross.map((position) => [keyOf(position), position])).values()];
-    const targets = uniqueCross.filter((position) => {
-      const cell = board[position.row]?.[position.col];
-      return Boolean(cell && !cell.special && !blocked.has(keyOf(position)));
-    });
+    const targetCount = Math.min(candidates.length, 17 + Math.floor(this.stageId / 3));
+    const targets = random.shuffle(candidates).slice(0, targetCount);
+    const impactArea = [...new Map(targets.flatMap((position) => [
+      position,
+      { row: position.row - 1, col: position.col },
+      { row: position.row + 1, col: position.col },
+      { row: position.row, col: position.col - 1 },
+      { row: position.row, col: position.col + 1 },
+    ]).filter((position) => this.inside(position)).map((position) => [keyOf(position), position])).values()];
 
-    await new Promise<void>((resolve) => this.time.delayedCall(150, resolve));
-    const centerPoint = this.cellPosition(center);
-    const worldX = BOARD_X + centerPoint.x;
-    const worldY = BOARD_Y + centerPoint.y;
-    const lightning = this.add.graphics().setDepth(119).setBlendMode(Phaser.BlendModes.ADD);
-    lightning.fillStyle(0x59dfff, 0.22).fillRoundedRect(BOARD_X - 18, worldY - 31, BOARD_PIXELS + 36, 62, 31);
-    lightning.fillStyle(0x59dfff, 0.22).fillRoundedRect(worldX - 31, BOARD_Y - 18, 62, BOARD_PIXELS + 36, 31);
-    this.drawLightningBolt(lightning, BOARD_X - 10, worldY, BOARD_X + BOARD_PIXELS + 10, worldY, 0xffec7a, 8);
-    this.drawLightningBolt(lightning, worldX, BOARD_Y - 10, worldX, BOARD_Y + BOARD_PIXELS + 10, 0xffffff, 8);
-    lightning.setAlpha(0).setScale(0.92);
-    this.tweens.add({ targets: lightning, alpha: { from: 0, to: 1 }, scale: 1, duration: 80, yoyo: true, repeat: 2, onComplete: () => lightning.destroy() });
-
+    await new Promise<void>((resolve) => this.time.delayedCall(120, resolve));
+    this.createThunderStormScene(targets);
     targets.forEach((position, index) => {
-      this.time.delayedCall(index * 12, () => {
+      this.time.delayedCall(120 + index * 22, () => {
         const point = this.cellPosition(position);
         const x = BOARD_X + point.x;
         const y = BOARD_Y + point.y;
         this.views.get(keyOf(position))?.playRemove();
-        this.createPopFlash(x, y, index % 2 === 0 ? 0x69e8ff : 0xffe66d, 1.35);
-        this.particlePool.burst(x, y, { count: 7, colors: [0xffffff, 0xffe66d, 0x69e8ff], speed: { min: 130, max: 270 }, lifespan: 560, size: { min: 3, max: 8 } });
+        this.createPopFlash(x, y, index % 3 === 0 ? 0x69e8ff : index % 3 === 1 ? 0xffe66d : 0xffffff, 1.8);
+        this.particlePool.burst(x, y, { count: 10, colors: [0xffffff, 0xffe66d, 0x69e8ff, 0xb995ff], speed: { min: 180, max: 430 }, lifespan: 760, gravityY: 42, size: { min: 4, max: 12 } });
       });
     });
-    this.createImpactWave(worldX, worldY, 'rocket', 5, center.row, center.col);
-    this.attackObstacles(uniqueCross);
-    this.flashStatus('천둥의 십자 폭발!', true, 1150);
-    this.floatingPool.show(worldX, worldY - 70, 'THUNDER TOTEM', { color: '#fff3a0', stroke: '#28506d', fontSize: 48, duration: 1150, rise: 100 });
-    audioSystem.playSfx('bomb');
-    this.time.delayedCall(80, () => audioSystem.playSfx('rocket'));
-    hapticSystem.playMatch('bomb', 5);
-    if (saveSystem.getData().settings.screenShake) this.cameras.main.shake(240, 0.007);
-    await new Promise<void>((resolve) => this.time.delayedCall(520, resolve));
+    this.createImpactWave(540, BOARD_Y + BOARD_PIXELS / 2, 'rainbow', 6);
+    this.attackObstacles(impactArea);
+    this.flashStatus('천둥 폭풍!', true, 1350);
+    this.floatingPool.show(540, BOARD_Y + BOARD_PIXELS / 2 - 80, 'THUNDER STORM', { color: '#fff3a0', stroke: '#274c7a', fontSize: 58, duration: 1300, rise: 118 });
+    audioSystem.duckMusic(0.55, 0.25);
+    audioSystem.playSfx('rainbow');
+    this.time.delayedCall(100, () => audioSystem.playSfx('bomb'));
+    this.time.delayedCall(230, () => audioSystem.playSfx('rocket'));
+    hapticSystem.playMatch('rainbow', 6);
+    if (saveSystem.getData().settings.screenShake) this.cameras.main.shake(360, 0.012);
+    await new Promise<void>((resolve) => this.time.delayedCall(850, resolve));
     this.model.removePositions(targets);
-    return 1200 + targets.length * 100;
+    return 2200 + targets.length * 140;
+  }
+
+  private createThunderStormScene(targets: readonly Position[]): void {
+    const settings = saveSystem.getData().settings;
+    const flash = this.add.rectangle(540, 960, 1080, 1920, 0xdff8ff, 0.18).setDepth(116).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: flash, alpha: { from: 0.58, to: 0 }, duration: 520, ease: 'Expo.Out', onComplete: () => flash.destroy() });
+
+    const storm = this.add.graphics().setDepth(117).setBlendMode(Phaser.BlendModes.ADD);
+    storm.fillStyle(0x102f66, 0.24).fillRoundedRect(BOARD_X - 18, BOARD_Y - 18, BOARD_PIXELS + 36, BOARD_PIXELS + 36, 38);
+    storm.lineStyle(12, 0x65e9ff, 0.3).strokeRoundedRect(BOARD_X - 18, BOARD_Y - 18, BOARD_PIXELS + 36, BOARD_PIXELS + 36, 38);
+    const previewTargets = targets.slice(0, 12);
+    previewTargets.forEach((position, index) => {
+      const point = this.cellPosition(position);
+      const x = BOARD_X + point.x;
+      const y = BOARD_Y + point.y;
+      const startX = 120 + ((index * 173) % 840);
+      this.drawLightningBolt(storm, startX, BOARD_Y - 110 - (index % 3) * 35, x, y, index % 2 === 0 ? 0xffef89 : 0xffffff, index % 3 === 0 ? 8 : 6);
+    });
+    this.tweens.add({ targets: storm, alpha: 0, duration: settings.reducedMotion ? 320 : 820, ease: 'Sine.Out', onComplete: () => storm.destroy() });
+
+    if (!settings.reducedMotion) {
+      for (let ring = 0; ring < 3; ring += 1) {
+        const wave = this.add.graphics().setPosition(540, BOARD_Y + BOARD_PIXELS / 2).setDepth(118).setBlendMode(Phaser.BlendModes.ADD);
+        wave.lineStyle(10 - ring * 2, ring === 0 ? 0xffffff : 0x71e9ff, 0.72 - ring * 0.12).strokeCircle(0, 0, 90 + ring * 35);
+        wave.setScale(0.2);
+        this.tweens.add({ targets: wave, scale: 6.2 + ring * 0.4, alpha: 0, delay: ring * 110, duration: 720, ease: 'Quart.Out', onComplete: () => wave.destroy() });
+      }
+    }
   }
 
   private drawLightningBolt(
@@ -923,9 +1016,9 @@ export class GameScene extends BaseScene {
   }
 
   private createShuffleButton(): void {
-    const y = BOARD_Y + BOARD_PIXELS + 108;
-    this.shuffleButton = this.addButton(540, y, '보드 섞기  ·  2회', () => this.useShuffle(), {
-      width: 520, height: 104, color: 0x28bfa6, color2: 0x3b7be2, fontSize: 31,
+    const y = BOARD_Y + BOARD_PIXELS + 284;
+    this.shuffleButton = this.addButton(540, y, '셔플 2회', () => this.useShuffle(), {
+      width: 840, height: 136, color: 0x20d0ad, color2: 0x2f7ff0, fontSize: 50,
     });
   }
 
@@ -936,14 +1029,14 @@ export class GameScene extends BaseScene {
     this.updateShuffleButton();
     this.displayBoard(this.model.reshuffle(), true);
     audioSystem.playSfx('swap');
-    this.flashStatus(this.shufflesLeft > 0 ? '새 보드! 셔플이 1회 남았어요' : '마지막 셔플을 사용했어요');
+    this.flashStatus(this.shufflesLeft > 0 ? '새 보드! 셔플 1회 남음' : '마지막 셔플 사용!');
   }
 
   private updateShuffleButton(): void {
     const button = this.shuffleButton;
     const label = button?.getData('label') as Phaser.GameObjects.Text | undefined;
     if (!button || !label) return;
-    label.setText(this.shufflesLeft > 0 ? `보드 섞기  ·  ${this.shufflesLeft}회` : '셔플 사용 완료');
+    label.setText(this.shufflesLeft > 0 ? `셔플 ${this.shufflesLeft}회` : '셔플 완료');
     if (this.shufflesLeft <= 0) button.disableInteractive().setAlpha(0.48);
   }
 
@@ -1006,8 +1099,8 @@ export class GameScene extends BaseScene {
     this.scoreText.setText(this.score.toLocaleString('ko-KR'));
     const safeSeconds = Math.max(0, this.secondsLeft);
     this.modeText.setText(this.mode === 'endless'
-      ? `INFINITE  ·  LV.${this.endlessLevel}`
-      : this.difficulty.replace(/([A-Z])/g, ' $1').toUpperCase());
+      ? `INFINITE · LV.${this.endlessLevel}`
+      : `LEVEL ${this.stageId}`);
     this.timeText.setText(this.formatTime(safeSeconds));
     const ratio = Phaser.Math.Clamp(safeSeconds / Math.max(1, this.stage.timeLimit ?? 1), 0, 1);
     const barColor = safeSeconds <= 10 ? 0xff5577 : safeSeconds <= 30 ? 0xffa349 : 0x5fcf9f;
@@ -1045,7 +1138,12 @@ export class GameScene extends BaseScene {
 
   private checkEnd(): void {
     if (this.ending) return;
-    if (this.secondsLeft <= 0) this.finish(true);
+    if (this.mode === 'endless') {
+      if (this.secondsLeft <= 0) this.finish(true);
+      return;
+    }
+    if (this.goals.isComplete) this.finish(true);
+    else if (this.secondsLeft <= 0) this.finish(false);
   }
 
   private finish(success: boolean): void {
@@ -1065,7 +1163,7 @@ export class GameScene extends BaseScene {
       achievementSystem.record({ type: 'starsEarned', total: saveSystem.getData().progress.totalStars });
     }
     this.time.delayedCall(500, () => this.fadeTo('ResultScene', {
-      stageId: this.stageId, difficulty: this.difficulty, mode: this.mode, score: this.score, stars, bestCombo: this.bestCombo, success,
+      stageId: this.stageId, mode: this.mode, score: this.score, stars, bestCombo: this.bestCombo, success,
       survivedSeconds: this.secondsElapsed,
       remaining: this.stage.timeLimit ?? 0, reward: success ? stars + 1 : 0,
     }));
@@ -1100,7 +1198,7 @@ export class GameScene extends BaseScene {
   }
 
   private showTutorialIfNeeded(): void {
-    if (this.mode === 'endless' || this.difficulty !== 'easy' || saveSystem.getData().progress.tutorialComplete) return;
+    if (this.mode === 'endless' || this.stageId !== 1 || saveSystem.getData().progress.tutorialComplete) return;
     this.tutorialActive = true;
     this.locked = true;
     const finishTutorial = (): void => {

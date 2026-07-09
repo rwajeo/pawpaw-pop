@@ -26,6 +26,24 @@ const nextRunToken = (): string => {
 
 const difficultyIndex = (difficulty: Difficulty): number => DIFFICULTY_OPTIONS.findIndex((option) => option.id === difficulty) + 1;
 
+/** A survival run with no fixed finish line. The clock is a life gauge and the pace rises over time. */
+export const createEndlessChallenge = (runToken = nextRunToken()): StageDefinition => {
+  const seed = `pawpaw-endless-${runToken}`;
+  const random = new SeededRandom(seed);
+  return {
+    id: 0,
+    title: '끝없는 모험',
+    seed,
+    timeLimit: 60,
+    endless: true,
+    goals: [{ type: 'score', target: Number.MAX_SAFE_INTEGER }],
+    obstacles: [{ type: 'jelly', count: 6 }],
+    starThresholds: [15000, 35000, 70000],
+    hint: '매치를 이어 시간을 충전하고 최고 기록에 도전하세요.',
+    characterPool: random.shuffle(ALL_CHARACTER_IDS).slice(0, 6),
+  };
+};
+
 /** Builds a fresh rule set and seed for every normal game. Passing a token makes a run reproducible for tests. */
 export const createDifficultyChallenge = (difficulty: Difficulty, runToken = nextRunToken()): StageDefinition => {
   const seed = `pawpaw-${difficulty}-${runToken}`;

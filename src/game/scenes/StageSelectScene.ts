@@ -5,6 +5,15 @@ import { audioSystem } from '../systems/AudioSystem';
 import { saveSystem } from '../systems/SaveSystem';
 import { BaseScene } from './BaseScene';
 
+const CARD_PALETTES = [
+  { top: 0x277961, bottom: 0x174d59, accent: 0x6aebbd },
+  { top: 0x2d67a1, bottom: 0x313f78, accent: 0x73ceff },
+  { top: 0xa65c32, bottom: 0x67374f, accent: 0xffb269 },
+  { top: 0x91345f, bottom: 0x4d347e, accent: 0xff79b5 },
+] as const;
+
+const DIFFICULTY_TIMES = ['3분', '2분', '1분 30초', '1분'] as const;
+
 /** Kept under the existing scene key so saved navigation remains compatible. */
 export class StageSelectScene extends BaseScene {
   public constructor() { super('StageSelectScene'); }
@@ -22,37 +31,66 @@ export class StageSelectScene extends BaseScene {
 
     const save = saveSystem.getData();
     DIFFICULTY_OPTIONS.forEach((option, index) => {
-      const y = 310 + index * 245;
+      const y = 310 + index * 250;
       const card = this.add.container(GAME_WIDTH / 2, y);
       const best = save.progress.stages[String(index + 1)]?.bestScore ?? 0;
+      const palette = CARD_PALETTES[index] ?? CARD_PALETTES[0];
       const plate = this.add.graphics()
-        .fillStyle(0x070611, 0.38).fillRoundedRect(-425, -90, 850, 210, 42)
-        .fillGradientStyle(0x30294f, 0x272b49, 0x1f3349, 0x252640, 0.97).lineStyle(3, option.color, 0.72)
-        .fillRoundedRect(-425, -106, 850, 210, 42).strokeRoundedRect(-425, -106, 850, 210, 42)
-        .fillStyle(option.color, 0.2).fillRoundedRect(-395, -76, 250, 148, 32)
-        .fillStyle(option.color, 0.9).fillRoundedRect(-425, -58, 8, 112, 4)
-        .fillStyle(0xffffff, 0.08).fillRoundedRect(-380, -88, 730, 4, 2);
-      const label = this.add.text(-270, -35, option.label, {
-        fontFamily: DISPLAY_FONT, fontSize: option.id === 'veryHard' ? '38px' : '43px', fontStyle: 'bold', color: '#ffffff',
+        .fillStyle(0x05040d, 0.42).fillRoundedRect(-455, -96, 910, 220, 46)
+        .fillGradientStyle(palette.top, palette.top, palette.bottom, palette.bottom, 0.98).lineStyle(4, palette.accent, 0.76)
+        .fillRoundedRect(-455, -110, 910, 220, 46).strokeRoundedRect(-455, -110, 910, 220, 46)
+        .fillStyle(0xffffff, 0.08).fillRoundedRect(-425, -82, 330, 164, 36)
+        .fillStyle(palette.accent, 0.92).fillRoundedRect(-455, -60, 10, 120, 5);
+      const label = this.add.text(-260, 0, option.label, {
+        fontFamily: DISPLAY_FONT, fontSize: option.id === 'veryHard' ? '45px' : '53px', fontStyle: 'bold', color: '#ffffff',
       }).setOrigin(0.5);
-      const title = this.add.text(-105, -58, option.title, {
-        fontFamily: UI_FONT, fontSize: '35px', fontStyle: 'bold', color: '#ffffff',
-      });
-      const description = this.add.text(-105, 2, option.description, {
-        fontFamily: UI_FONT, fontSize: '24px', fontStyle: 'bold', color: '#b9bdd3',
-      });
-      const bestText = this.add.text(385, 54, best > 0 ? `BEST ${best.toLocaleString('ko-KR')}` : 'NEW RUN', {
-        fontFamily: DISPLAY_FONT, fontSize: '22px', fontStyle: 'bold', color: best > 0 ? '#ffd57f' : '#8fa4bb',
-      }).setOrigin(1, 0.5);
-      const arrow = this.add.text(380, -26, '›', {
-        fontFamily: DISPLAY_FONT, fontSize: '52px', fontStyle: 'bold', color: Phaser.Display.Color.IntegerToColor(option.color).rgba,
+      const timeCaption = this.add.text(135, -48, '제한 시간', {
+        fontFamily: UI_FONT, fontSize: '27px', fontStyle: 'bold', color: '#d8d9ea',
       }).setOrigin(0.5);
-      card.add([plate, label, title, description, bestText, arrow]);
-      card.setSize(850, 210).setInteractive({ useHandCursor: true });
+      const timeText = this.add.text(135, 8, DIFFICULTY_TIMES[index] ?? '1분', {
+        fontFamily: DISPLAY_FONT, fontSize: '45px', fontStyle: 'bold', color: '#ffffff',
+      }).setOrigin(0.5).setShadow(0, 5, '#11101f', 7, true, true);
+      const bestText = this.add.text(135, 69, best > 0 ? `BEST  ${best.toLocaleString('ko-KR')}` : 'BEST  —', {
+        fontFamily: DISPLAY_FONT, fontSize: '27px', fontStyle: 'bold', color: '#fff0b5',
+      }).setOrigin(0.5);
+      const arrow = this.add.text(395, 0, '›', {
+        fontFamily: DISPLAY_FONT, fontSize: '58px', fontStyle: 'bold', color: Phaser.Display.Color.IntegerToColor(palette.accent).rgba,
+      }).setOrigin(0.5);
+      card.add([plate, label, timeCaption, timeText, bestText, arrow]);
+      card.setSize(910, 220).setInteractive({ useHandCursor: true });
       card.on('pointerup', () => this.fadeTo('GameScene', { difficulty: option.id }));
       card.on('pointerover', () => this.tweens.add({ targets: card, scale: 1.025, duration: 100 }));
       card.on('pointerout', () => this.tweens.add({ targets: card, scale: 1, duration: 100 }));
     });
+
+    const endless = this.add.container(GAME_WIDTH / 2, 1405);
+    const endlessPlate = this.add.graphics()
+      .fillStyle(0x05040d, 0.48).fillRoundedRect(-455, -84, 910, 196, 46)
+      .fillGradientStyle(0x6d36a8, 0x275f99, 0x123f67, 0x482e7d, 0.98)
+      .lineStyle(4, 0xd7a8ff, 0.82).fillRoundedRect(-455, -98, 910, 196, 46).strokeRoundedRect(-455, -98, 910, 196, 46)
+      .fillStyle(0xffffff, 0.1).fillRoundedRect(-420, -69, 840, 5, 3)
+      .fillStyle(0xb875ff, 0.9).fillRoundedRect(-455, -49, 10, 98, 5);
+    const endlessLabel = this.add.text(-240, -22, 'INFINITE', {
+      fontFamily: DISPLAY_FONT, fontSize: '50px', fontStyle: 'bold', color: '#ffffff',
+    }).setOrigin(0.5).setShadow(0, 5, '#130d28', 8, true, true);
+    const endlessCopy = this.add.text(-240, 42, '끝없는 모험', {
+      fontFamily: UI_FONT, fontSize: '29px', fontStyle: 'bold', color: '#d9c7ff',
+    }).setOrigin(0.5);
+    const endlessBest = save.progress.endlessBestScore;
+    const endlessScore = this.add.text(160, -24, endlessBest > 0 ? `BEST  ${endlessBest.toLocaleString('ko-KR')}` : 'BEST  —', {
+      fontFamily: DISPLAY_FONT, fontSize: '33px', fontStyle: 'bold', color: '#fff0b5',
+    }).setOrigin(0.5);
+    const endlessRule = this.add.text(160, 39, '시간 충전 · 난이도 상승', {
+      fontFamily: UI_FONT, fontSize: '27px', fontStyle: 'bold', color: '#d6ddff',
+    }).setOrigin(0.5);
+    const endlessArrow = this.add.text(397, 0, '›', {
+      fontFamily: DISPLAY_FONT, fontSize: '68px', fontStyle: 'bold', color: '#e0b6ff',
+    }).setOrigin(0.5);
+    endless.add([endlessPlate, endlessLabel, endlessCopy, endlessScore, endlessRule, endlessArrow]);
+    endless.setSize(910, 196).setInteractive({ useHandCursor: true });
+    endless.on('pointerup', () => this.fadeTo('GameScene', { mode: 'endless', difficulty: 'medium' }));
+    endless.on('pointerover', () => this.tweens.add({ targets: endless, scale: 1.025, duration: 100 }));
+    endless.on('pointerout', () => this.tweens.add({ targets: endless, scale: 1, duration: 100 }));
 
     this.input.keyboard?.on('keydown-ESC', () => this.fadeTo('MenuScene'));
   }

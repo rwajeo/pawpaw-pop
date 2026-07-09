@@ -57,6 +57,9 @@ export const createDefaultSaveData = (dateKey = getLocalDateKey()): SaveData => 
     tutorialComplete: false,
     totalStars: 0,
     totalScore: 0,
+    endlessBestScore: 0,
+    endlessBestCombo: 0,
+    endlessLongestSeconds: 0,
   },
   items: { shuffle: 1, hammer: 1, paw: 0 },
   daily: { date: dateKey, seed: dailySeedForDate(dateKey), bestScore: 0, attempts: 0, completed: false },
@@ -170,6 +173,9 @@ const normalizeSaveData = (value: unknown): SaveData => {
       tutorialComplete: bool(progressSource.tutorialComplete, false),
       totalStars,
       totalScore,
+      endlessBestScore: boundedInt(progressSource.endlessBestScore, 0, 0, Number.MAX_SAFE_INTEGER),
+      endlessBestCombo: boundedInt(progressSource.endlessBestCombo, 0, 0, 999),
+      endlessLongestSeconds: boundedInt(progressSource.endlessLongestSeconds, 0, 0, Number.MAX_SAFE_INTEGER),
     },
     items: normalizeInventory(source.items, defaults.items),
     daily,
@@ -293,6 +299,22 @@ export class SaveSystem {
         unlockedStage: Math.min(MAX_STAGE, Math.max(this.data.progress.unlockedStage, result.stageId + (result.stars > 0 ? 1 : 0))),
       },
       achievementStats: stats,
+    });
+  }
+
+  recordEndlessResult(score: number, bestCombo: number, seconds: number): boolean {
+    return this.commit({
+      ...this.data,
+      progress: {
+        ...this.data.progress,
+        endlessBestScore: Math.max(this.data.progress.endlessBestScore, Math.floor(score)),
+        endlessBestCombo: Math.max(this.data.progress.endlessBestCombo, Math.floor(bestCombo)),
+        endlessLongestSeconds: Math.max(this.data.progress.endlessLongestSeconds, Math.floor(seconds)),
+      },
+      achievementStats: {
+        ...this.data.achievementStats,
+        bestCombo: Math.max(this.data.achievementStats.bestCombo, Math.floor(bestCombo)),
+      },
     });
   }
 

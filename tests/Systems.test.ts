@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDifficultyChallenge, DIFFICULTY_OPTIONS } from '../src/game/data/difficulties';
+import { createDifficultyChallenge, createEndlessChallenge, DIFFICULTY_OPTIONS } from '../src/game/data/difficulties';
 import { SaveSystem } from '../src/game/systems/SaveSystem';
 import { ScoreSystem } from '../src/game/systems/ScoreSystem';
 
@@ -38,6 +38,14 @@ describe('systems and data', () => {
     expect(veryHard.obstacles.length).toBeGreaterThan(0);
   });
 
+  it('creates reproducible endless survival runs', () => {
+    const run = createEndlessChallenge('endless-check');
+    expect(run).toEqual(createEndlessChallenge('endless-check'));
+    expect(run.endless).toBe(true);
+    expect(run.timeLimit).toBe(60);
+    expect(run.characterPool).toHaveLength(6);
+  });
+
   it('recovers safely from corrupt save data', () => {
     const storage = new MemoryStorage();
     storage.setItem('test-save', '{broken-json');
@@ -45,6 +53,18 @@ describe('systems and data', () => {
     const save = new SaveSystem('test-save');
     expect(save.getData().progress.unlockedStage).toBe(1);
     expect(save.getData().items.shuffle).toBeGreaterThan(0);
+  });
+
+  it('keeps endless records separate and only replaces them with better results', () => {
+    const storage = new MemoryStorage();
+    Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+    const save = new SaveSystem('endless-save');
+    save.recordEndlessResult(12000, 4, 95);
+    save.recordEndlessResult(9000, 3, 70);
+    expect(save.getData().progress.endlessBestScore).toBe(12000);
+    expect(save.getData().progress.endlessBestCombo).toBe(4);
+    expect(save.getData().progress.endlessLongestSeconds).toBe(95);
+    expect(save.getData().progress.stages).toEqual({});
   });
 
   it('scores matches once per event and caps duplicate awards', () => {

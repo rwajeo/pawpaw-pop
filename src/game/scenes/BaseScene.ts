@@ -15,17 +15,52 @@ export interface ButtonOptions {
 export class BaseScene extends Phaser.Scene {
   protected addPremiumBackdrop(accent = 0x8067ff): void {
     const background = this.add.graphics();
-    background.fillGradientStyle(0x17142d, 0x24183e, 0x102a40, 0x15223b, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    background.fillStyle(accent, 0.16).fillCircle(90, 240, 300).fillCircle(980, 560, 390);
-    background.fillStyle(0x4fd5d1, 0.09).fillCircle(120, 1500, 430);
-    background.fillStyle(0xff7597, 0.08).fillCircle(1020, 1760, 360);
-    background.lineStyle(2, 0xffffff, 0.035);
-    for (let y = 90; y < GAME_HEIGHT; y += 110) {
-      for (let x = 70 + ((y / 110) % 2) * 45; x < GAME_WIDTH; x += 130) background.strokeCircle(x, y, 3);
+    background.fillGradientStyle(0x17132f, 0x231744, 0x092b3c, 0x11192f, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    background.fillGradientStyle(accent, 0x6551b7, 0x2b7f91, 0x23596e, 0.13)
+      .fillEllipse(540, 170, 1320, 420);
+    background.fillStyle(0xffffff, 0.035).fillEllipse(540, 115, 980, 210);
+
+    background.fillStyle(accent, 0.075).fillPoints([
+      new Phaser.Geom.Point(-120, 430), new Phaser.Geom.Point(170, 255), new Phaser.Geom.Point(430, 350),
+      new Phaser.Geom.Point(720, 205), new Phaser.Geom.Point(1210, 360), new Phaser.Geom.Point(1210, 570),
+      new Phaser.Geom.Point(760, 420), new Phaser.Geom.Point(420, 515), new Phaser.Geom.Point(-120, 610),
+    ], true);
+    background.fillStyle(0x49d4cb, 0.055).fillPoints([
+      new Phaser.Geom.Point(-100, 620), new Phaser.Geom.Point(260, 430), new Phaser.Geom.Point(560, 520),
+      new Phaser.Geom.Point(870, 380), new Phaser.Geom.Point(1180, 520), new Phaser.Geom.Point(1180, 715),
+      new Phaser.Geom.Point(780, 585), new Phaser.Geom.Point(390, 690), new Phaser.Geom.Point(-100, 760),
+    ], true);
+
+    background.fillGradientStyle(0x243653, 0x273451, 0x172d42, 0x1d2940, 0.88).fillPoints([
+      new Phaser.Geom.Point(-80, 1420), new Phaser.Geom.Point(170, 1160), new Phaser.Geom.Point(345, 1330),
+      new Phaser.Geom.Point(560, 1060), new Phaser.Geom.Point(770, 1320), new Phaser.Geom.Point(980, 1110),
+      new Phaser.Geom.Point(1160, 1340), new Phaser.Geom.Point(1160, 1920), new Phaser.Geom.Point(-80, 1920),
+    ], true);
+    background.fillGradientStyle(0x132f43, 0x172b42, 0x0b2233, 0x102238, 0.94).fillPoints([
+      new Phaser.Geom.Point(-100, 1640), new Phaser.Geom.Point(180, 1430), new Phaser.Geom.Point(390, 1570),
+      new Phaser.Geom.Point(650, 1370), new Phaser.Geom.Point(840, 1550), new Phaser.Geom.Point(1180, 1390),
+      new Phaser.Geom.Point(1180, 1920), new Phaser.Geom.Point(-100, 1920),
+    ], true);
+    background.fillStyle(0x071a29, 0.54).fillPoints([
+      new Phaser.Geom.Point(-100, 1800), new Phaser.Geom.Point(210, 1610), new Phaser.Geom.Point(500, 1770),
+      new Phaser.Geom.Point(780, 1580), new Phaser.Geom.Point(1180, 1730), new Phaser.Geom.Point(1180, 1920),
+      new Phaser.Geom.Point(-100, 1920),
+    ], true);
+
+    const atmosphere = this.add.graphics();
+    const rng = new Phaser.Math.RandomDataGenerator([`${this.scene.key}-premium-backdrop`]);
+    for (let index = 0; index < 32; index += 1) {
+      const x = rng.between(45, GAME_WIDTH - 45);
+      const y = rng.between(65, 1460);
+      const size = rng.between(2, 6);
+      const color = index % 4 === 0 ? accent : index % 3 === 0 ? 0x74e8de : 0xffffff;
+      atmosphere.fillStyle(color, rng.realInRange(0.18, 0.48)).fillPoints([
+        new Phaser.Geom.Point(x, y - size), new Phaser.Geom.Point(x + size * 0.55, y),
+        new Phaser.Geom.Point(x, y + size), new Phaser.Geom.Point(x - size * 0.55, y),
+      ], true);
     }
-    const glow = this.add.graphics();
-    glow.fillStyle(0xffffff, 0.035).fillEllipse(540, 360, 900, 440);
-    this.tweens.add({ targets: glow, alpha: { from: 0.45, to: 1 }, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    atmosphere.lineStyle(2, 0xffffff, 0.035).beginPath().moveTo(80, 980).lineTo(340, 900).lineTo(590, 970).lineTo(910, 850).strokePath();
+    this.tweens.add({ targets: atmosphere, alpha: { from: 0.55, to: 1 }, y: { from: -4, to: 6 }, duration: 3200, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
   }
 
   protected addBackdrop(accent = 0xffd8cc): void {

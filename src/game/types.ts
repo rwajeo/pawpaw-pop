@@ -49,9 +49,11 @@ export interface StageDefinition {
   readonly starThresholds: readonly [number, number, number];
   readonly hint: string;
   readonly characterPool?: readonly CharacterId[];
+  readonly endless?: boolean;
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'veryHard';
+export type GameMode = 'timed' | 'endless';
 
 export type AchievementId =
   | 'first_stage'
@@ -107,6 +109,9 @@ export interface PlayerProgress {
   tutorialComplete: boolean;
   totalStars: number;
   totalScore: number;
+  endlessBestScore: number;
+  endlessBestCombo: number;
+  endlessLongestSeconds: number;
 }
 
 export interface Inventory {

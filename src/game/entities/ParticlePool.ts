@@ -19,7 +19,7 @@ export class ParticlePool {
   private readonly particles: PooledParticle[] = [];
   private readonly available: PooledParticle[] = [];
 
-  public constructor(private readonly scene: Phaser.Scene, initialSize = 36) {
+  public constructor(private readonly scene: Phaser.Scene, initialSize = 72, private readonly maxSize = 180) {
     this.grow(initialSize);
   }
 
@@ -31,19 +31,24 @@ export class ParticlePool {
     const gravityY = options.gravityY ?? 130;
     const size = options.size ?? { min: 2, max: 5 };
 
-    if (this.available.length < count) this.grow(count - this.available.length);
-    for (let index = 0; index < count; index += 1) {
+    if (this.available.length < count) this.grow(Math.min(count - this.available.length, this.maxSize - this.particles.length));
+    const emitted = Math.min(count, this.available.length);
+    for (let index = 0; index < emitted; index += 1) {
       const particle = this.available.pop();
       if (!particle) break;
       const angle = Phaser.Math.FloatBetween(-Math.PI * 0.92, -Math.PI * 0.08);
       const velocity = Phaser.Math.Between(speed.min, speed.max);
       const radius = Phaser.Math.FloatBetween(size.min, size.max);
+      const shape = index % 3;
+      const stretchX = shape === 1 ? Phaser.Math.FloatBetween(2.2, 3.8) : shape === 2 ? 0.7 : 1;
+      const stretchY = shape === 1 ? 0.34 : shape === 2 ? Phaser.Math.FloatBetween(1.5, 2.1) : 1;
       particle.view
         .setPosition(x, y)
         .setRadius(radius)
-        .setFillStyle(Phaser.Utils.Array.GetRandom([...colors]))
+        .setFillStyle(colors[index % colors.length] ?? 0xffffff)
         .setAlpha(1)
-        .setScale(1)
+        .setScale(stretchX, stretchY)
+        .setAngle(Phaser.Math.Between(-50, 50))
         .setVisible(true)
         .setActive(true);
       particle.tween = this.scene.tweens.addCounter({
@@ -55,7 +60,8 @@ export class ParticlePool {
           const t = tween.getValue() ?? 0;
           particle.view.x = x + Math.cos(angle) * velocity * (t * lifespan / 1000);
           particle.view.y = y + Math.sin(angle) * velocity * (t * lifespan / 1000) + gravityY * t * t * 0.5;
-          particle.view.setAlpha(1 - t).setScale(1 - t * 0.35);
+          const fadeScale = 1 - t * 0.38;
+          particle.view.setAlpha(1 - t).setScale(stretchX * fadeScale, stretchY * fadeScale).setAngle(particle.view.angle + 4);
         },
         onComplete: () => this.release(particle),
       });
@@ -77,7 +83,8 @@ export class ParticlePool {
   }
 
   private grow(count: number): void {
-    for (let index = 0; index < count; index += 1) {
+    const safeCount = Math.max(0, Math.min(count, this.maxSize - this.particles.length));
+    for (let index = 0; index < safeCount; index += 1) {
       const view = this.scene.add.circle(0, 0, 3, 0xffffff).setVisible(false).setActive(false).setDepth(100);
       const particle: PooledParticle = { view };
       this.particles.push(particle);
@@ -87,8 +94,7 @@ export class ParticlePool {
 
   private release(particle: PooledParticle): void {
     particle.tween = undefined;
-    particle.view.setVisible(false).setActive(false);
+    particle.view.setVisible(false).setActive(false).setScale(1).setAngle(0).setAlpha(1);
     if (!this.available.includes(particle)) this.available.push(particle);
   }
 }
-

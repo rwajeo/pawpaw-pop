@@ -124,20 +124,80 @@ export class Tile extends Phaser.GameObjects.Container {
     }
     this.scene.tweens.add({
       targets: this,
-      scaleX: 1.16,
-      scaleY: 0.9,
-      duration: 52,
+      scaleX: 1.1,
+      scaleY: 0.88,
+      duration: 46,
       ease: 'Quad.Out',
       onComplete: () => {
         this.scene.tweens.add({
           targets: this,
-          scaleX: 0.42,
-          scaleY: 1.28,
+          scaleX: 1.25,
+          scaleY: 1.25,
+          y: this.y - 7,
+          duration: 72,
+          ease: 'Back.Out',
+          onComplete: () => {
+            this.scene.tweens.add({
+              targets: this,
+              scaleX: 0.16,
+              scaleY: 0.16,
+              alpha: 0,
+              angle: Phaser.Math.Between(-14, 14),
+              duration: 126,
+              ease: 'Back.In',
+              onComplete: () => onComplete?.(),
+            });
+          },
+        });
+      },
+    });
+    return this;
+  }
+
+  public playSpecialCreation(
+    special: Exclude<TileSpecial, 'none'>,
+    onReveal?: () => void,
+    onComplete?: () => void,
+  ): this {
+    this.disableInteractive();
+    this.characterArt.setExpression('selected');
+    if (this.reducedMotion) {
+      this.setSpecial(special);
+      onReveal?.();
+      onComplete?.();
+      return this;
+    }
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: 1.18,
+      scaleY: 0.86,
+      duration: 58,
+      ease: 'Quad.Out',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: this,
+          scaleX: 0.2,
+          scaleY: 1.24,
           alpha: 0,
-          angle: Phaser.Math.Between(-10, 10),
-          duration: 118,
+          angle: Phaser.Math.Between(-9, 9),
+          duration: 112,
           ease: 'Back.In',
-          onComplete: () => onComplete?.(),
+          onComplete: () => {
+            this.setSpecial(special).setAlpha(1).setAngle(0).setScale(1.34, 0.82);
+            onReveal?.();
+            this.scene.tweens.add({
+              targets: this,
+              scaleX: 1,
+              scaleY: 1,
+              duration: 220,
+              ease: 'Back.Out',
+              onComplete: () => {
+                this.characterArt.setExpression('idle');
+                onComplete?.();
+              },
+            });
+          },
         });
       },
     });
@@ -223,25 +283,44 @@ export class Tile extends Phaser.GameObjects.Container {
     if (this.special === 'rainbow') {
       const colors = [0xff627d, 0xffca4d, 0x65d89b, 0x62b8ef, 0xb583df];
       colors.forEach((color, index) => {
-        g.lineStyle(Math.max(2, this.tileSize * 0.035), color, 0.9);
-        g.strokeCircle(0, 0, r - index * this.tileSize * 0.045);
+        const x = (index - 2) * this.tileSize * 0.115;
+        const top = -this.tileSize * (0.43 + (index % 2) * 0.055);
+        g.fillStyle(color, 0.98).lineStyle(2, 0xffffff, 0.7).fillPoints([
+          new Phaser.Geom.Point(x, top - 8), new Phaser.Geom.Point(x + 6, top),
+          new Phaser.Geom.Point(x, top + 8), new Phaser.Geom.Point(x - 6, top),
+        ], true).strokePoints([
+          new Phaser.Geom.Point(x, top - 8), new Phaser.Geom.Point(x + 6, top),
+          new Phaser.Geom.Point(x, top + 8), new Phaser.Geom.Point(x - 6, top),
+        ], true);
       });
-      g.fillStyle(0xffffff, 0.9).fillCircle(0, 0, this.tileSize * 0.055);
+      g.lineStyle(5, 0xff6f86, 0.9).lineBetween(-r - 5, 17, -r + 8, 3);
+      g.lineStyle(5, 0xffce55, 0.9).lineBetween(-r - 4, 25, -r + 11, 8);
+      g.lineStyle(5, 0x65d89b, 0.9).lineBetween(r + 5, 17, r - 8, 3);
+      g.lineStyle(5, 0x67bff2, 0.9).lineBetween(r + 4, 25, r - 11, 8);
       return;
     }
     if (this.special === 'bomb') {
-      g.fillStyle(0x473c5e, 0.92).fillCircle(0, 0, this.tileSize * 0.17);
-      g.lineStyle(3, 0xffd35b, 1).beginPath().moveTo(r * 0.25, -r * 0.5).lineTo(r * 0.56, -r * 0.88).strokePath();
-      g.fillStyle(0xffeb78, 1).fillCircle(r * 0.63, -r * 0.93, this.tileSize * 0.045);
+      g.fillStyle(0x4e405d, 0.95).lineStyle(3, 0x211a2d, 0.9).fillPoints([
+        new Phaser.Geom.Point(r - 1, 15), new Phaser.Geom.Point(r + 18, 6),
+        new Phaser.Geom.Point(r + 22, 29), new Phaser.Geom.Point(r + 2, 34),
+      ], true).strokePoints([
+        new Phaser.Geom.Point(r - 1, 15), new Phaser.Geom.Point(r + 18, 6),
+        new Phaser.Geom.Point(r + 22, 29), new Phaser.Geom.Point(r + 2, 34),
+      ], true);
+      g.lineStyle(4, 0xffb64c, 1).beginPath().moveTo(r + 14, 7).lineTo(r + 22, -5).lineTo(r + 29, -9).strokePath();
+      g.lineStyle(3, 0xffee88, 1).lineBetween(r + 28, -17, r + 28, -5).lineBetween(r + 22, -12, r + 34, -12);
       return;
     }
-    g.lineStyle(Math.max(3, this.tileSize * 0.06), 0xffffff, 0.92);
+    const wingColor = 0x79dfff;
+    g.fillStyle(wingColor, 0.96).lineStyle(3, 0xffffff, 0.82);
     if (this.special === 'row') {
-      g.lineBetween(-r, 0, r, 0);
-      g.fillStyle(0xffffff, 0.92).fillTriangle(-r, 0, -r + 8, -5, -r + 8, 5).fillTriangle(r, 0, r - 8, -5, r - 8, 5);
+      g.fillTriangle(-r - 21, 0, -r + 1, -15, -r + 1, 15).strokeTriangle(-r - 21, 0, -r + 1, -15, -r + 1, 15);
+      g.fillTriangle(r + 21, 0, r - 1, -15, r - 1, 15).strokeTriangle(r + 21, 0, r - 1, -15, r - 1, 15);
+      g.lineStyle(3, 0xffffff, 0.72).lineBetween(-r - 12, 0, -r - 2, 0).lineBetween(r + 12, 0, r + 2, 0);
     } else {
-      g.lineBetween(0, -r, 0, r);
-      g.fillStyle(0xffffff, 0.92).fillTriangle(0, -r, -5, -r + 8, 5, -r + 8).fillTriangle(0, r, -5, r - 8, 5, r - 8);
+      g.fillTriangle(0, -r - 21, -15, -r + 1, 15, -r + 1).strokeTriangle(0, -r - 21, -15, -r + 1, 15, -r + 1);
+      g.fillTriangle(0, r + 21, -15, r - 1, 15, r - 1).strokeTriangle(0, r + 21, -15, r - 1, 15, r - 1);
+      g.lineStyle(3, 0xffffff, 0.72).lineBetween(0, -r - 12, 0, -r - 2).lineBetween(0, r + 12, 0, r + 2);
     }
   }
 }

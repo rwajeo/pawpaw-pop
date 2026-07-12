@@ -29,7 +29,7 @@ const LEVEL_TITLES = [
 
 const clampLevel = (levelId: number): number => Math.min(MAX_LEVEL, Math.max(1, Math.floor(levelId)));
 const levelTime = (levelId: number): number => (levelId <= 3 ? 150 : levelId <= 7 ? 135 : levelId <= 12 ? 120 : levelId <= 16 ? 105 : 90);
-const poolSizeForLevel = (levelId: number): number => Math.min(7, 4 + Math.floor((levelId - 1) / 4));
+const poolSizeForLevel = (levelId: number): number => levelId <= 4 ? 4 : levelId <= 11 ? 5 : levelId <= 17 ? 6 : 7;
 
 let runSequence = 0;
 const nextRunToken = (): string => {
@@ -60,7 +60,7 @@ const createLevelRules = (
   if (variant === 0) {
     return {
       goals: [{ type: 'collect', characterId: collect, target: 14 + Math.floor(levelId * 0.55) }, { type: 'score', target: scoreBase }],
-      obstacles: levelId >= 11 ? [{ type: 'jelly', count: 6 + Math.floor(levelId / 4) }] : [],
+      obstacles: [],
       hint: '목표 동물이 포함된 매치를 우선으로 만들면 빠르게 클리어할 수 있어요.',
     };
   }
@@ -75,9 +75,9 @@ const createLevelRules = (
 
   if (variant === 2) {
     return {
-      goals: [{ type: 'obstacle', obstacle: 'jelly', target: 6 + Math.floor(levelId / 2) }, { type: 'score', target: scoreBase }],
-      obstacles: [{ type: 'jelly', count: 6 + Math.floor(levelId / 2) }],
-      hint: '젤리 위의 동물을 터뜨리면 젤리가 사라집니다.',
+      goals: [{ type: 'special', target: 2 + Math.floor(levelId / 5) }, { type: 'score', target: scoreBase }],
+      obstacles: [],
+      hint: '4마리 이상의 큰 매치로 매치 파워를 만들며 점수를 채우세요.',
     };
   }
 
@@ -91,12 +91,12 @@ const createLevelRules = (
 
   return {
     goals: levelId >= 12
-      ? [{ type: 'starDrop', target: Math.min(4, 1 + Math.floor(levelId / 6)) }, { type: 'special', target: 3 + Math.floor(levelId / 4) }]
+      ? [{ type: 'collect', characterId: collect, target: 16 + Math.floor(levelId / 2) }, { type: 'special', target: 3 + Math.floor(levelId / 4) }]
       : [{ type: 'obstacle', obstacle: 'stone', target: 5 + Math.floor(levelId / 2) }, { type: 'score', target: scoreBase }],
     obstacles: levelId >= 12
-      ? [{ type: 'starShard', count: Math.min(4, 1 + Math.floor(levelId / 6)) }, { type: 'stone', count: 4 + Math.floor(levelId / 3), strength: levelId >= 16 ? 2 : 1 }]
+      ? []
       : [{ type: 'stone', count: 5 + Math.floor(levelId / 2), strength: 1 }],
-    hint: '특수 블록과 토템을 아껴 두었다가 막힌 구간에서 터뜨리세요.',
+    hint: '목표 친구를 모으면서 큰 매치로 천둥 토템을 빠르게 충전하세요.',
   };
 };
 
@@ -137,4 +137,27 @@ export const getStarsForScore = (stage: StageDefinition, score: number): 0 | 1 |
   if (score >= stage.starThresholds[1]) return 2;
   if (score >= stage.starThresholds[0]) return 1;
   return 0;
+};
+
+/**
+ * Timed levels end as soon as their goals are complete, so score-only star
+ * thresholds would make higher stars unreachable. Reward quick, deliberate
+ * clears instead: goal completion, pace, then pace plus a strong chain or
+ * meaningful score overshoot.
+ */
+export const getStarsForPerformance = (
+  stage: StageDefinition,
+  score: number,
+  remainingSeconds: number,
+  bestChain: number,
+  success: boolean,
+): 0 | 1 | 2 | 3 => {
+  if (!success) return 0;
+  const timeRatio = Math.min(1, Math.max(0, remainingSeconds / Math.max(1, stage.timeLimit ?? 1)));
+  const scoreGoal = stage.goals.filter((goal): goal is Extract<StageGoal, { type: 'score' }> => goal.type === 'score')
+    .reduce((highest, goal) => Math.max(highest, goal.target), 0);
+  const scoreRatio = scoreGoal > 0 ? score / scoreGoal : 1;
+  const twoStars = timeRatio >= 0.4 || scoreRatio >= 1.15;
+  const threeStars = timeRatio >= 0.6 && (bestChain >= 2 || scoreRatio >= 1.25);
+  return threeStars ? 3 : twoStars ? 2 : 1;
 };

@@ -1,7 +1,9 @@
+import Phaser from 'phaser';
 import { DISPLAY_FONT, GAME_WIDTH, UI_FONT } from '../constants';
 import { MAX_LEVEL, STAGES } from '../data/stages';
 import { audioSystem } from '../systems/AudioSystem';
 import { saveSystem } from '../systems/SaveSystem';
+import type { StageDefinition, StageGoal } from '../types';
 import { BaseScene } from './BaseScene';
 
 const levelPalette = (levelId: number): { top: number; bottom: number; accent: number } => {
@@ -47,13 +49,21 @@ export class StageSelectScene extends BaseScene {
 
   private drawMapPath(unlocked: number): void {
     const path = this.add.graphics();
-    path.lineStyle(18, 0x05040d, 0.18)
-      .beginPath().moveTo(142, 600).lineTo(350, 680).lineTo(550, 600).lineTo(744, 690).lineTo(940, 610)
-      .lineTo(885, 1035).lineTo(640, 1140).lineTo(430, 1035).lineTo(185, 1140).strokePath();
-    path.lineStyle(7, 0xffffff, 0.16)
-      .beginPath().moveTo(142, 600).lineTo(350, 680).lineTo(550, 600).lineTo(744, 690).lineTo(940, 610)
-      .lineTo(885, 1035).lineTo(640, 1140).lineTo(430, 1035).lineTo(185, 1140).strokePath();
-    path.fillStyle(0xffe38d, 0.18).fillCircle(140 + ((unlocked - 1) % 5) * 200, 610 + Math.floor((unlocked - 1) / 5) * 210, 96);
+    const points = Array.from({ length: MAX_LEVEL }, (_, index) => {
+      const row = Math.floor(index / 4);
+      const localCol = index % 4;
+      const col = row % 2 === 0 ? localCol : 3 - localCol;
+      return new Phaser.Geom.Point(165 + col * 250, 610 + row * 190);
+    });
+    const drawPath = (width: number, color: number, alpha: number): void => {
+      path.lineStyle(width, color, alpha).beginPath().moveTo(points[0]?.x ?? 165, points[0]?.y ?? 610);
+      points.slice(1).forEach((point) => path.lineTo(point.x, point.y));
+      path.strokePath();
+    };
+    drawPath(18, 0x05040d, 0.2);
+    drawPath(7, 0xffffff, 0.17);
+    const current = points[Math.max(0, unlocked - 1)];
+    if (current) path.fillStyle(0xffe38d, 0.18).fillCircle(current.x, current.y, 100);
   }
 
   private drawProgressPanel(completed: number, totalStars: number): void {
@@ -96,21 +106,22 @@ export class StageSelectScene extends BaseScene {
     const timeValue = this.add.text(202, 35, this.formatTime(stage?.timeLimit ?? 120), {
       fontFamily: DISPLAY_FONT, fontSize: '42px', fontStyle: '900', color: '#fff6c9',
     }).setOrigin(0.5).setShadow(0, 4, '#171126', 6, true, true);
-    const start = this.add.text(396, 10, '시작', {
-      fontFamily: DISPLAY_FONT, fontSize: '44px', fontStyle: '900', color: '#ffffff',
+    const start = this.add.text(396, 10, '정보', {
+      fontFamily: DISPLAY_FONT, fontSize: '40px', fontStyle: '900', color: '#ffffff',
     }).setOrigin(0.5).setShadow(0, 5, '#151126', 7, true, true);
     root.add([plate, caption, title, time, timeValue, start]);
     root.setSize(910, 184).setInteractive({ useHandCursor: true });
-    root.on('pointerup', () => this.fadeTo('GameScene', { stageId: levelId }));
+    root.on('pointerup', () => this.showLevelPreview(stage));
     root.on('pointerover', () => this.tweens.add({ targets: root, scale: 1.025, duration: 100 }));
     root.on('pointerout', () => this.tweens.add({ targets: root, scale: 1, duration: 100 }));
   }
 
   private drawLevelCard(levelId: number, index: number, unlocked: number): void {
-    const col = index % 5;
-    const row = Math.floor(index / 5);
-    const x = 140 + col * 200;
-    const y = 610 + row * 210;
+    const row = Math.floor(index / 4);
+    const localCol = index % 4;
+    const col = row % 2 === 0 ? localCol : 3 - localCol;
+    const x = 165 + col * 250;
+    const y = 610 + row * 190;
     const save = saveSystem.getData();
     const record = save.progress.stages[String(levelId)];
     const isUnlocked = levelId <= unlocked;
@@ -119,28 +130,28 @@ export class StageSelectScene extends BaseScene {
     const palette = levelPalette(levelId);
     const root = this.add.container(x, y).setAlpha(isUnlocked ? 1 : 0.5);
     const card = this.add.graphics()
-      .fillStyle(0x05040d, 0.42).fillRoundedRect(-82, -76, 164, 174, 36)
-      .fillStyle(0xffffff, isUnlocked ? 0.12 : 0.05).fillRoundedRect(-76, -94, 152, 166, 34)
+      .fillStyle(0x05040d, 0.42).fillRoundedRect(-92, -68, 184, 158, 36)
+      .fillStyle(0xffffff, isUnlocked ? 0.12 : 0.05).fillRoundedRect(-86, -84, 172, 150, 34)
       .fillGradientStyle(isUnlocked ? palette.top : 0x5a5365, isUnlocked ? palette.top : 0x5a5365, isUnlocked ? palette.bottom : 0x3e3949, isUnlocked ? palette.bottom : 0x3e3949, 0.98)
       .lineStyle(isCurrent ? 7 : 4, isCurrent ? 0xffffff : palette.accent, isCurrent ? 0.95 : 0.45)
-      .fillRoundedRect(-82, -92, 164, 174, 36).strokeRoundedRect(-82, -92, 164, 174, 36)
+      .fillRoundedRect(-92, -84, 184, 158, 36).strokeRoundedRect(-92, -84, 184, 158, 36)
       .fillStyle(0xffffff, 0.14).fillRoundedRect(-56, -68, 112, 6, 3);
-    const level = this.add.text(0, -20, String(levelId), {
-      fontFamily: DISPLAY_FONT, fontSize: '66px', fontStyle: '900', color: '#ffffff',
+    const level = this.add.text(0, -18, String(levelId), {
+      fontFamily: DISPLAY_FONT, fontSize: '62px', fontStyle: '900', color: '#ffffff',
     }).setOrigin(0.5).setShadow(0, 6, '#111026', 8, true, true);
     const starText = this.add.text(0, 48, isUnlocked ? `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}` : '잠김', {
       fontFamily: DISPLAY_FONT, fontSize: isUnlocked ? '28px' : '25px', fontStyle: '900', color: isUnlocked ? '#ffe38d' : '#d5cfdf',
     }).setOrigin(0.5).setShadow(0, 3, '#151025', 5, true, true);
     root.add([card, level, starText]);
     if (!isUnlocked) return;
-    root.setSize(164, 174).setInteractive({ useHandCursor: true });
-    root.on('pointerup', () => this.fadeTo('GameScene', { stageId: levelId }));
+    root.setSize(184, 158).setInteractive({ useHandCursor: true });
+    root.on('pointerup', () => this.showLevelPreview(STAGES[levelId - 1]));
     root.on('pointerover', () => this.tweens.add({ targets: root, scale: 1.055, duration: 90 }));
     root.on('pointerout', () => this.tweens.add({ targets: root, scale: 1, duration: 100 }));
   }
 
   private drawEndlessButton(bestScore: number): void {
-    const root = this.add.container(GAME_WIDTH / 2, 1510);
+    const root = this.add.container(GAME_WIDTH / 2, 1630);
     const plate = this.add.graphics()
       .fillStyle(0x05040d, 0.48).fillRoundedRect(-430, -72, 860, 164, 44)
       .fillGradientStyle(0x8e4aff, 0x397bd9, 0x124567, 0x56329a, 0.98)
@@ -166,5 +177,64 @@ export class StageSelectScene extends BaseScene {
     const minutes = Math.floor(seconds / 60);
     const rest = seconds % 60;
     return rest > 0 ? `${minutes}분 ${rest}초` : `${minutes}분`;
+  }
+
+  private showLevelPreview(stage?: StageDefinition): void {
+    if (!stage) return;
+    const palette = levelPalette(stage.id);
+    const shade = this.add.rectangle(540, 960, 1080, 1920, 0x070611, 0.78).setDepth(1000).setInteractive();
+    const panel = this.add.graphics().setDepth(1001)
+      .fillStyle(0x05040d, 0.54).fillRoundedRect(105, 505, 870, 850, 58)
+      .fillGradientStyle(0x3a315d, 0x31375c, 0x214c61, 0x332d55, 1)
+      .lineStyle(5, palette.accent, 0.7)
+      .fillRoundedRect(105, 480, 870, 850, 58)
+      .strokeRoundedRect(105, 480, 870, 850, 58)
+      .fillStyle(0xffffff, 0.12).fillRoundedRect(160, 525, 760, 8, 4);
+    const eyebrow = this.add.text(540, 585, `LEVEL ${stage.id}`, {
+      fontFamily: DISPLAY_FONT, fontSize: '30px', fontStyle: '900', color: '#bfefff',
+    }).setOrigin(0.5).setLetterSpacing(5).setDepth(1002);
+    const title = this.add.text(540, 665, stage.title, {
+      fontFamily: UI_FONT, fontSize: '66px', fontStyle: '900', color: '#ffffff',
+      stroke: '#1b1735', strokeThickness: 8,
+    }).setOrigin(0.5).setDepth(1002);
+    const time = this.add.text(540, 755, `제한 시간  ${this.formatTime(stage.timeLimit ?? 120)}`, {
+      fontFamily: UI_FONT, fontSize: '36px', fontStyle: '900', color: '#ffe59b',
+    }).setOrigin(0.5).setDepth(1002);
+    const mission = this.add.text(540, 900, stage.goals.map((goal) => this.goalLabel(goal)).join('\n'), {
+      fontFamily: UI_FONT, fontSize: '38px', fontStyle: '800', color: '#ffffff', align: 'center', lineSpacing: 20,
+    }).setOrigin(0.5).setDepth(1002);
+    const hint = this.add.text(540, 1030, '보드는 매번 새롭게 섞여 시작됩니다', {
+      fontFamily: UI_FONT, fontSize: '27px', fontStyle: '800', color: '#bdc6df',
+    }).setOrigin(0.5).setDepth(1002);
+    let overlayPointerHandler: ((pointer: Phaser.Input.Pointer) => void) | undefined;
+    const cleanup = (): void => {
+      if (overlayPointerHandler) this.input.off(Phaser.Input.Events.POINTER_UP, overlayPointerHandler);
+      [shade, panel, eyebrow, title, time, mission, hint, start, close].forEach((item) => item.destroy());
+    };
+    const start = this.addButton(540, 1160, '도전 시작', () => this.fadeTo('GameScene', { stageId: stage.id }), {
+      width: 650, height: 126, color: palette.top, color2: palette.bottom, fontSize: 46,
+    }).setDepth(1002);
+    const close = this.addButton(540, 1305, '다른 레벨 보기', cleanup, {
+      width: 520, height: 94, color: 0x3e4668, color2: 0x323654, fontSize: 31,
+    }).setDepth(1002);
+    overlayPointerHandler = (pointer: Phaser.Input.Pointer): void => {
+      if (Math.abs(pointer.worldX - 540) <= 325 && Math.abs(pointer.worldY - 1160) <= 70) {
+        this.fadeTo('GameScene', { stageId: stage.id });
+      } else if (Math.abs(pointer.worldX - 540) <= 260 && Math.abs(pointer.worldY - 1305) <= 55) {
+        cleanup();
+      }
+    };
+    this.input.on(Phaser.Input.Events.POINTER_UP, overlayPointerHandler);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (overlayPointerHandler) this.input.off(Phaser.Input.Events.POINTER_UP, overlayPointerHandler);
+    });
+  }
+
+  private goalLabel(goal: StageGoal): string {
+    if (goal.type === 'score') return `점수 ${goal.target.toLocaleString('ko-KR')} 달성`;
+    if (goal.type === 'collect') return `목표 친구 ${goal.target}마리 모으기`;
+    if (goal.type === 'obstacle') return `봉인 ${goal.target}개 해제`;
+    if (goal.type === 'starDrop') return `별 조각 ${goal.target}개 모으기`;
+    return `매치 파워 ${goal.target}회 만들기`;
   }
 }

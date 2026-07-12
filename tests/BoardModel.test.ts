@@ -50,6 +50,11 @@ describe('BoardModel', () => {
     expect(result.cascades.length).toBeGreaterThanOrEqual(1);
     expect(result.cascades[0]?.removed).toHaveLength(3);
     expect(result.score).toBeGreaterThanOrEqual(300);
+    result.cascades.forEach((step, index) => {
+      expect(step.source.flat().every((cell) => cell !== null)).toBe(true);
+      expect(step.board.flat().every((cell) => cell !== null)).toBe(true);
+      if (index > 0) expect(step.source).toEqual(result.cascades[index - 1]?.board);
+    });
     expect(MatchDetector.hasMatches(result.board)).toBe(false);
     expect(model.availableMoves().length).toBeGreaterThan(0);
   });

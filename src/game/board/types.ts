@@ -50,6 +50,10 @@ export interface CreatedSpecial {
 
 export interface CascadeStep {
   readonly index: number;
+  /** Board before this pop, used for correct character-specific effects. */
+  readonly source: Board;
+  /** Refilled board immediately after this pop, used for the next chain. */
+  readonly board: Board;
   readonly matches: MatchResult;
   readonly removed: readonly Position[];
   readonly created: readonly CreatedSpecial[];

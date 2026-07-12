@@ -35,19 +35,19 @@ export class TutorialOverlay extends Phaser.GameObjects.Container {
     this.messageBubble = scene.add.graphics();
     this.messageText = scene.add.text(0, 0, '', {
       fontFamily: 'Pretendard, "Noto Sans KR", "Malgun Gothic", sans-serif',
-      fontSize: '18px',
+      fontSize: '38px',
       fontStyle: 'bold',
       color: '#5a4563',
       align: 'center',
-      lineSpacing: 5,
-      wordWrap: { width: Math.min(310, scene.scale.width - 70) },
+      lineSpacing: 10,
+      wordWrap: { width: Math.min(720, scene.scale.width - 180) },
     }).setOrigin(0.5);
     this.nextButton = new Button(scene, 0, 0, {
-      label: '다음', width: 110, height: 46, fontSize: 17, reducedMotion: options.reducedMotion,
+      label: '다음', width: 250, height: 92, fontSize: 34, reducedMotion: options.reducedMotion,
       onClick: () => this.nextStep(),
     });
     this.skipButton = new Button(scene, 0, 0, {
-      label: '건너뛰기', width: 106, height: 42, fontSize: 15, variant: 'quiet', reducedMotion: options.reducedMotion,
+      label: '건너뛰기', width: 230, height: 86, fontSize: 29, variant: 'quiet', reducedMotion: options.reducedMotion,
       onClick: () => this.skip(),
     });
     this.add([this.shade, this.focus, this.arrow, this.messageBubble, this.messageText, this.nextButton, this.skipButton]);
@@ -128,32 +128,32 @@ export class TutorialOverlay extends Phaser.GameObjects.Container {
     );
     this.drawArrow(step);
 
-    const bubbleWidth = Math.min(350, width - 28);
-    const bubbleHeight = 128;
+    const bubbleWidth = Math.min(860, width - 80);
+    const bubbleHeight = 310;
     const preferBelow = target.y < height * 0.55;
     const bubbleY = Phaser.Math.Clamp(
-      preferBelow ? target.y + target.height / 2 + 95 : target.y - target.height / 2 - 95,
-      bubbleHeight / 2 + 12,
-      height - bubbleHeight / 2 - 12,
+      preferBelow ? target.y + target.height / 2 + 205 : target.y - target.height / 2 - 205,
+      bubbleHeight / 2 + 36,
+      height - bubbleHeight / 2 - 36,
     );
     this.messageBubble.clear().fillStyle(0xfff9ee, 0.98).fillRoundedRect(
       width / 2 - bubbleWidth / 2,
       bubbleY - bubbleHeight / 2,
       bubbleWidth,
       bubbleHeight,
-      22,
+      46,
     );
     this.messageBubble.lineStyle(3, 0xe6bfad, 1).strokeRoundedRect(
       width / 2 - bubbleWidth / 2,
       bubbleY - bubbleHeight / 2,
       bubbleWidth,
       bubbleHeight,
-      22,
+      46,
     );
-    this.messageText.setText(step.message).setPosition(width / 2, bubbleY - 19);
+    this.messageText.setText(step.message).setPosition(width / 2, bubbleY - 50);
     this.nextButton.setLabel(this.stepIndex === this.steps.length - 1 ? '시작!' : '다음');
-    this.nextButton.setPosition(width / 2 + 56, bubbleY + 36);
-    this.skipButton.setPosition(width / 2 - 64, bubbleY + 36);
+    this.nextButton.setPosition(width / 2 + 142, bubbleY + 92);
+    this.skipButton.setPosition(width / 2 - 150, bubbleY + 92);
   }
 
   private drawArrow(step: TutorialStep): void {
@@ -185,7 +185,7 @@ export class TutorialOverlay extends Phaser.GameObjects.Container {
     if (!this.active || !this.visible) return;
     const hit = (button: Button, width: number, height: number): boolean =>
       Math.abs(pointer.worldX - button.x) <= width / 2 && Math.abs(pointer.worldY - button.y) <= height / 2;
-    if (hit(this.skipButton, 132, 64)) this.skip();
-    else if (hit(this.nextButton, 136, 66)) this.nextStep();
+    if (hit(this.skipButton, 250, 100)) this.skip();
+    else if (hit(this.nextButton, 270, 106)) this.nextStep();
   }
 }

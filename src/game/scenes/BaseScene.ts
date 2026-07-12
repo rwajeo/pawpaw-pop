@@ -13,6 +13,7 @@ export interface ButtonOptions {
 }
 
 export class BaseScene extends Phaser.Scene {
+  private transitioning = false;
   protected addPremiumBackdrop(accent = 0x8067ff): void {
     const background = this.add.graphics();
     background.fillGradientStyle(0x17183c, 0x292053, 0x0d4661, 0x102438, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -103,12 +104,11 @@ export class BaseScene extends Phaser.Scene {
       .fillStyle(0x000000, 0.15).fillRoundedRect(-width / 2 + 26, height / 2 - 6, width - 52, 18, 12);
     const plate = this.add.graphics()
       .fillStyle(deep, 1).fillRoundedRect(-width / 2, -height / 2 + 10, width, height, radius)
-      .fillGradientStyle(topColor, Phaser.Display.Color.ValueToColor(topColor).lighten(10).color, bottomColor, deep, 1)
-      .lineStyle(5, rim, 0.92)
+      .fillStyle(topColor, 1)
+      .lineStyle(4, rim, 0.94)
       .fillRoundedRect(-width / 2, -height / 2, width, height - 10, radius)
       .strokeRoundedRect(-width / 2, -height / 2, width, height - 10, radius)
-      .lineStyle(3, 0xffffff, 0.34).strokeRoundedRect(-width / 2 + 8, -height / 2 + 8, width - 16, height - 26, radius - 7)
-      .fillStyle(0xffffff, 0.18).fillRoundedRect(-width / 2 + 32, -height / 2 + 17, width - 64, 8, 4);
+      .fillStyle(0xffffff, 0.16).fillRoundedRect(-width / 2 + 28, -height / 2 + 15, width - 56, 6, 3);
     const text = this.add.text(0, -5, `${options.icon ? `${options.icon}  ` : ''}${label}`, {
       fontFamily: UI_FONT,
       fontSize: `${options.fontSize ?? 40}px`,
@@ -154,7 +154,16 @@ export class BaseScene extends Phaser.Scene {
   }
 
   protected fadeTo(key: string, data?: object): void {
-    this.cameras.main.fadeOut(180, 255, 248, 232);
-    this.time.delayedCall(185, () => this.scene.start(key, data));
+    if (this.transitioning) return;
+    this.transitioning = true;
+    this.input.enabled = false;
+    const enteringPlay = key === 'GameScene';
+    const duration = enteringPlay ? 270 : 220;
+    this.cameras.main.fadeOut(duration, enteringPlay ? 25 : 255, enteringPlay ? 24 : 248, enteringPlay ? 48 : 232);
+    this.time.delayedCall(duration + 10, () => {
+      this.transitioning = false;
+      this.input.enabled = true;
+      this.scene.start(key, data);
+    });
   }
 }

@@ -45,7 +45,7 @@ export class ResultScene extends BaseScene {
     this.tweens.addCounter({ from: 0, to: this.result.score, duration: 850, ease: 'Cubic.Out', onUpdate: (tween) => scoreLabel.setText(Math.floor(tween.getValue() ?? 0).toLocaleString('ko-KR')) });
 
     this.statCard(315, 835, '최고 콤보', `${this.result.bestCombo} COMBO`, 410);
-    this.statCard(765, 835, isEndless ? '생존 시간' : '제한 시간', this.formatLimit(), 410);
+    this.statCard(765, 835, isEndless ? '생존 시간' : '남은 시간', this.formatLimit(), 410);
     this.statCard(
       540,
       1015,
@@ -54,7 +54,7 @@ export class ResultScene extends BaseScene {
       860,
       true,
     );
-    if (!isEndless) this.starCriteriaCard(540, 1165, this.result.starThresholds);
+    if (!isEndless) this.starCriteriaCard(540, 1165);
 
     const nextLevel = Math.min(MAX_LEVEL, this.result.stageId + 1);
     const canContinue = !isEndless && this.result.success && this.result.stageId < MAX_LEVEL;
@@ -103,13 +103,11 @@ export class ResultScene extends BaseScene {
     root.add([shadow, plate, labelText, valueText]);
   }
 
-  private starCriteriaCard(x: number, y: number, thresholds?: readonly [number, number, number]): void {
+  private starCriteriaCard(x: number, y: number): void {
     const root = this.add.container(x, y);
     const width = 860;
     const height = 118;
-    const criteria = thresholds
-      ? `1★ 클리어   2★ ${thresholds[1].toLocaleString('ko-KR')}점   3★ ${thresholds[2].toLocaleString('ko-KR')}점`
-      : '1★ 클리어   2★ 높은 점수   3★ 최고 점수';
+    const criteria = '1★ 목표 완료   2★ 빠른 클리어   3★ 빠른 클리어 + 연쇄';
     const shadow = this.add.graphics().fillStyle(0x05040d, 0.35).fillRoundedRect(-width / 2, -height / 2 + 8, width, height, 32);
     const plate = this.add.graphics()
       .fillGradientStyle(0x27324f, 0x33405d, 0x24495d, 0x362b56, 0.96)
@@ -117,7 +115,7 @@ export class ResultScene extends BaseScene {
       .fillRoundedRect(-width / 2, -height / 2, width, height, 32)
       .strokeRoundedRect(-width / 2, -height / 2, width, height, 32)
       .fillStyle(0xffffff, 0.11).fillRoundedRect(-width / 2 + 30, -height / 2 + 18, width - 60, 6, 3);
-    const label = this.add.text(0, -28, '별 기준 · 목표 달성 후 점수 성과로 판정', {
+    const label = this.add.text(0, -28, '별 기준 · 남은 시간과 플레이 성과로 판정', {
       fontFamily: UI_FONT, fontSize: '25px', fontStyle: '900', color: '#ffe7a7',
     }).setOrigin(0.5);
     const value = this.add.text(0, 22, criteria, {

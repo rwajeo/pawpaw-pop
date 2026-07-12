@@ -37,7 +37,9 @@ export class Tile extends Phaser.GameObjects.Container {
     this.characterArt = new CharacterRenderer(scene, 0, -2, options.character, this.tileSize * 0.9);
     this.selectionRing = scene.add.graphics();
     this.specialIcon = scene.add.graphics();
-    this.add([this.shadow, this.frame, this.characterArt, this.specialIcon, this.selectionRing]);
+    // Power styling stays behind the mascot so the board still reads as
+    // characters first, without stickers or boxes covering their faces.
+    this.add([this.shadow, this.frame, this.specialIcon, this.characterArt, this.selectionRing]);
     this.setSize(this.tileSize, this.tileSize);
     this.setInteractive(
       new Phaser.Geom.Rectangle(-this.tileSize / 2, -this.tileSize / 2, this.tileSize, this.tileSize),
@@ -279,49 +281,39 @@ export class Tile extends Phaser.GameObjects.Container {
     const g = this.specialIcon;
     g.clear();
     if (this.special === 'none') return;
-    const radius = this.tileSize * 0.16;
-    const x = this.tileSize * 0.3;
-    const y = this.tileSize * 0.29;
-    const fillColor = {
+    const half = this.tileSize * 0.46;
+    const color = {
       row: 0x55d8ff,
       column: 0x69e3a5,
       bomb: 0xff8b51,
       rainbow: 0xd884ff,
     }[this.special];
-
-    g.fillStyle(0x05040d, 0.28).fillCircle(x + 3, y + 4, radius + 5);
-    g.fillStyle(fillColor, 0.98)
-      .lineStyle(3, 0xffffff, 0.9)
-      .fillCircle(x, y, radius)
-      .strokeCircle(x, y, radius);
-    g.fillStyle(0xffffff, 0.24).fillCircle(x - radius * 0.36, y - radius * 0.36, radius * 0.34);
-
-    if (this.special === 'bomb') {
-      g.fillStyle(0x2a1c33, 0.95).fillCircle(x, y + 2, radius * 0.45);
-      g.lineStyle(3, 0xfff0a0, 1).beginPath().moveTo(x + radius * 0.28, y - radius * 0.32).lineTo(x + radius * 0.52, y - radius * 0.72).strokePath();
-      g.lineStyle(2, 0xffffff, 0.88).lineBetween(x + radius * 0.66, y - radius * 0.92, x + radius * 0.66, y - radius * 0.48).lineBetween(x + radius * 0.44, y - radius * 0.7, x + radius * 0.88, y - radius * 0.7);
-      return;
-    }
-
-    if (this.special === 'rainbow') {
-      const points = Array.from({ length: 10 }, (_, index) => {
-        const pointRadius = index % 2 === 0 ? radius * 0.58 : radius * 0.25;
-        const angle = -Math.PI / 2 + index * Math.PI / 5;
-        return new Phaser.Geom.Point(x + Math.cos(angle) * pointRadius, y + Math.sin(angle) * pointRadius);
-      });
-      g.fillStyle(0xffffff, 0.95).lineStyle(2, 0xfff39a, 0.95).fillPoints(points, true).strokePoints(points, true);
-      return;
-    }
-
-    g.lineStyle(5, 0xffffff, 0.94);
     if (this.special === 'row') {
-      g.lineBetween(x - radius * 0.58, y, x + radius * 0.58, y);
-      g.fillTriangle(x - radius * 0.78, y, x - radius * 0.38, y - radius * 0.28, x - radius * 0.38, y + radius * 0.28);
-      g.fillTriangle(x + radius * 0.78, y, x + radius * 0.38, y - radius * 0.28, x + radius * 0.38, y + radius * 0.28);
-    } else {
-      g.lineBetween(x, y - radius * 0.58, x, y + radius * 0.58);
-      g.fillTriangle(x, y - radius * 0.78, x - radius * 0.28, y - radius * 0.38, x + radius * 0.28, y - radius * 0.38);
-      g.fillTriangle(x, y + radius * 0.78, x - radius * 0.28, y + radius * 0.38, x + radius * 0.28, y + radius * 0.38);
+      [-20, 0, 20].forEach((y, index) => {
+        g.lineStyle(index === 1 ? 6 : 3, index === 1 ? 0xffffff : color, index === 1 ? 0.72 : 0.5)
+          .lineBetween(-half, y, -half * 0.5, y).lineBetween(half * 0.5, y, half, y);
+      });
+      return;
     }
+    if (this.special === 'column') {
+      [-20, 0, 20].forEach((x, index) => {
+        g.lineStyle(index === 1 ? 6 : 3, index === 1 ? 0xffffff : color, index === 1 ? 0.72 : 0.5)
+          .lineBetween(x, -half, x, -half * 0.5).lineBetween(x, half * 0.5, x, half);
+      });
+      return;
+    }
+    if (this.special === 'bomb') {
+      [[-half, -half * 0.5], [half, -half * 0.42], [-half * 0.84, half * 0.58], [half * 0.9, half * 0.62]].forEach(([x, y], index) => {
+        const size = index % 2 === 0 ? 8 : 6;
+        g.fillStyle(index % 2 === 0 ? color : 0xffffff, 0.85).fillPoints([
+          new Phaser.Geom.Point(x, y - size), new Phaser.Geom.Point(x + size * 0.55, y),
+          new Phaser.Geom.Point(x, y + size), new Phaser.Geom.Point(x - size * 0.55, y),
+        ], true);
+      });
+      return;
+    }
+    [0xff7f9f, 0xffdf73, 0x74e5d2, 0x8cc8ff, 0xd596ff].forEach((arcColor, index) => {
+      g.lineStyle(3, arcColor, 0.44).beginPath().arc(0, 2, half - index * 4, Math.PI * 1.08, Math.PI * 1.92).strokePath();
+    });
   }
 }

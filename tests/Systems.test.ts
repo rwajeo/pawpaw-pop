@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createEndlessChallenge } from '../src/game/data/difficulties';
-import { createStageChallenge, MAX_LEVEL, STAGES } from '../src/game/data/stages';
+import { createStageChallenge, getStarsForPerformance, MAX_LEVEL, STAGES } from '../src/game/data/stages';
+import { RelicChargeSystem } from '../src/game/systems/RelicChargeSystem';
 import { SaveSystem } from '../src/game/systems/SaveSystem';
 import { ScoreSystem } from '../src/game/systems/ScoreSystem';
 
@@ -38,7 +39,8 @@ describe('systems and data', () => {
     expect(late.timeLimit).toBeLessThan(early.timeLimit ?? 0);
     expect(early.moves).toBeUndefined();
     expect(late.moves).toBeUndefined();
-    expect(late.obstacles.length).toBeGreaterThan(0);
+    expect(STAGES.some((stage) => stage.obstacles.length > 0)).toBe(true);
+    expect(STAGES.every((stage) => stage.obstacles.every((obstacle) => obstacle.type !== 'jelly'))).toBe(true);
   });
 
   it('creates reproducible endless survival runs', () => {
@@ -75,5 +77,22 @@ describe('systems and data', () => {
     expect(score.addMatch(3, 1, 1, 'match-a').points).toBe(300);
     expect(score.addMatch(3, 1, 1, 'match-a').points).toBe(0);
     expect(score.addMatch(5, 2, 1.5, 'match-b').points).toBeGreaterThan(1000);
+  });
+
+  it('charges a stage relic through strong matches and limits it to one use', () => {
+    const relic = new RelicChargeSystem(false);
+    for (let turn = 0; turn < 10 && !relic.ready; turn += 1) relic.addMatch(4, 1, 1);
+    expect(relic.ready).toBe(true);
+    expect(relic.consume()).toBe(true);
+    expect(relic.exhausted).toBe(true);
+    expect(relic.addMatch(8, 2, 3).gained).toBe(0);
+  });
+
+  it('awards timed stars from actual clear performance rather than chance', () => {
+    const stage = createStageChallenge(1, 'star-performance');
+    expect(getStarsForPerformance(stage, 0, 0, 0, false)).toBe(0);
+    expect(getStarsForPerformance(stage, 3200, 30, 1, true)).toBe(1);
+    expect(getStarsForPerformance(stage, 3200, 90, 1, true)).toBe(2);
+    expect(getStarsForPerformance(stage, 4000, 100, 2, true)).toBe(3);
   });
 });

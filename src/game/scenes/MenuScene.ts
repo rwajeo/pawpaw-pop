@@ -31,12 +31,15 @@ export class MenuScene extends BaseScene {
     const primaryLevel = this.getPrimaryLevel();
     this.drawRecordCard(best, completed, save.progress.totalStars);
 
-    this.addStartButton(primaryLevel);
-    this.addButton(340, 1375, '설정', () => this.fadeTo('SettingsScene'), {
-      width: 350, height: 112, color: 0x705ce8, color2: 0x2e83c8, textColor: '#ffffff', fontSize: 38,
+    this.addStartButton(primaryLevel, completed > 0);
+    this.addButton(540, 1260, '레벨 지도', () => this.fadeTo('StageSelectScene'), {
+      width: 780, height: 112, color: 0x7b68ee, color2: 0x376fc9, textColor: '#ffffff', fontSize: 42,
     });
-    this.addButton(740, 1375, '게임 방법', () => this.showHowTo(), {
-      width: 390, height: 112, color: 0xffa33d, color2: 0xe95f78, textColor: '#ffffff', fontSize: 36,
+    this.addButton(340, 1420, '설정', () => this.fadeTo('SettingsScene'), {
+      width: 350, height: 104, color: 0x3f476d, color2: 0x2b3557, textColor: '#ffffff', fontSize: 36,
+    });
+    this.addButton(740, 1420, '게임 방법', () => this.showHowTo(), {
+      width: 390, height: 104, color: 0x4b456f, color2: 0x5d3c72, textColor: '#ffffff', fontSize: 34,
     });
 
     this.input.keyboard?.once('keydown-ENTER', () => this.fadeTo('GameScene', { stageId: primaryLevel }));
@@ -118,7 +121,7 @@ export class MenuScene extends BaseScene {
     root.add([card, label, score, progress]);
   }
 
-  private addStartButton(primaryLevel: number): void {
+  private addStartButton(primaryLevel: number, hasProgress: boolean): void {
     const x = GAME_WIDTH / 2;
     const y = 1088;
     const width = 780;
@@ -128,15 +131,14 @@ export class MenuScene extends BaseScene {
     const shadow = this.add.graphics().fillStyle(0x070511, 0.55).fillRoundedRect(-width / 2, -height / 2 + 22, width, height, 52);
     const plate = this.add.graphics()
       .fillStyle(0x1f7c28, 1).fillRoundedRect(-width / 2, -height / 2 + 13, width, height, 52)
-      .fillGradientStyle(0x9cff55, 0x6fe834, 0x2ac24f, 0x179c45, 1)
-      .lineStyle(6, 0x15773b, 0.94).fillRoundedRect(-width / 2, -height / 2, width, height - 12, 52).strokeRoundedRect(-width / 2, -height / 2, width, height - 12, 52)
-      .lineStyle(3, 0xffffff, 0.5).strokeRoundedRect(-width / 2 + 12, -height / 2 + 10, width - 24, height - 32, 42)
-      .fillStyle(0xffffff, 0.23).fillRoundedRect(-width / 2 + 42, -height / 2 + 22, width - 84, 10, 5);
-    const label = this.add.text(0, -7, '게임 시작', {
-      fontFamily: UI_FONT, fontSize: '62px', fontStyle: '900', color: '#ffffff',
+      .fillStyle(0x63d64d, 1)
+      .lineStyle(5, 0x16733e, 0.94).fillRoundedRect(-width / 2, -height / 2, width, height - 12, 52).strokeRoundedRect(-width / 2, -height / 2, width, height - 12, 52)
+      .fillStyle(0xffffff, 0.16).fillRoundedRect(-width / 2 + 42, -height / 2 + 22, width - 84, 8, 4);
+    const label = this.add.text(0, -7, hasProgress ? '계속하기' : '레벨 1 시작', {
+      fontFamily: UI_FONT, fontSize: '60px', fontStyle: '900', color: '#ffffff',
       stroke: '#1d6f2c', strokeThickness: 8,
     }).setOrigin(0.5).setShadow(0, 7, '#0d4b21', 8, true, true);
-    const tag = this.add.text(0, 54, `LEVEL ${primaryLevel}`, {
+    const tag = this.add.text(0, 54, hasProgress ? `LEVEL ${primaryLevel}` : '첫 모험', {
       fontFamily: DISPLAY_FONT, fontSize: '24px', fontStyle: '900', color: '#eaffc6',
     }).setOrigin(0.5).setLetterSpacing(4);
     root.add([glow, shadow, plate, label, tag]);

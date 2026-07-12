@@ -3,7 +3,7 @@ import { BoardModel, SeededRandom, type Board, type Position } from '../board';
 import { DISPLAY_FONT, UI_FONT } from '../constants';
 import { CHARACTERS } from '../data/characters';
 import { createEndlessChallenge } from '../data/difficulties';
-import { createStageChallenge, getStarsForScore, MAX_LEVEL } from '../data/stages';
+import { createStageChallenge, getStarsForPerformance, MAX_LEVEL } from '../data/stages';
 import { FloatingTextPool } from '../entities/FloatingTextPool';
 import { ParticlePool } from '../entities/ParticlePool';
 import { Tile as TileView, type TileSpecial } from '../entities/Tile';
@@ -11,6 +11,7 @@ import { achievementSystem } from '../systems/AchievementSystem';
 import { audioSystem } from '../systems/AudioSystem';
 import { GoalSystem } from '../systems/GoalSystem';
 import { hapticSystem } from '../systems/HapticSystem';
+import { RelicChargeSystem } from '../systems/RelicChargeSystem';
 import { saveSystem } from '../systems/SaveSystem';
 import type { GameMode, ObstacleType, SpecialTileType, StageDefinition } from '../types';
 import { TutorialOverlay } from '../ui/TutorialOverlay';
@@ -18,14 +19,14 @@ import { BaseScene } from './BaseScene';
 
 interface GameData { stageId?: number; levelId?: number; mode?: GameMode; }
 interface RuntimeObstacle { type: ObstacleType; row: number; col: number; hp: number; view?: Phaser.GameObjects.Container; }
-interface ThunderTotemState { active: boolean; nextScore: number; view?: Phaser.GameObjects.Container; }
+interface ThunderTotemState { active: boolean; }
 
 const BOARD_X = 24;
 const BOARD_Y = 205;
 const CELL = 129;
 const BOARD_PIXELS = CELL * 8;
 const TILE_SIZE = 122;
-const STATUS_Y = 200;
+const STATUS_Y = 720;
 const keyOf = ({ row, col }: Position): string => `${row}:${col}`;
 
 export class GameScene extends BaseScene {
@@ -36,7 +37,6 @@ export class GameScene extends BaseScene {
   private goals!: GoalSystem;
   private boardLayer!: Phaser.GameObjects.Container;
   private obstacleLayer!: Phaser.GameObjects.Container;
-  private relicLayer!: Phaser.GameObjects.Container;
   private views = new Map<string, TileView>();
   private obstacles: RuntimeObstacle[] = [];
   private selected?: Position;
@@ -56,16 +56,20 @@ export class GameScene extends BaseScene {
   private bestCombo = 0;
   private shufflesLeft = 2;
   private shuffleButton?: Phaser.GameObjects.Container;
+  private relicButton?: Phaser.GameObjects.Container;
+  private relicChargeBar?: Phaser.GameObjects.Graphics;
+  private relicCharge!: RelicChargeSystem;
   private scoreText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private timeBar!: Phaser.GameObjects.Graphics;
   private modeText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private statusPlate!: Phaser.GameObjects.Graphics;
+  private goalText!: Phaser.GameObjects.Text;
   private particlePool!: ParticlePool;
   private floatingPool!: FloatingTextPool;
   private countdownEvent?: Phaser.Time.TimerEvent;
-  private thunderTotem: ThunderTotemState = { active: false, nextScore: 6000 };
+  private thunderTotem: ThunderTotemState = { active: false };
 
   public constructor() { super('GameScene'); }
 
@@ -94,8 +98,11 @@ export class GameScene extends BaseScene {
     this.score = 0;
     this.bestCombo = 0;
     this.shufflesLeft = 2;
-    this.thunderTotem = { active: false, nextScore: Math.max(4200, Math.min(9000, this.stage.starThresholds[0])) };
+    this.thunderTotem = { active: false };
+    this.relicCharge = new RelicChargeSystem(this.mode === 'endless');
     this.shuffleButton = undefined;
+    this.relicButton = undefined;
+    this.relicChargeBar = undefined;
     this.locked = false;
     this.paused = false;
     this.ending = false;
@@ -114,7 +121,7 @@ export class GameScene extends BaseScene {
     this.createObstacles();
     this.displayBoard(this.model.board, true);
     this.createBoardInput();
-    this.createShuffleButton();
+    this.createActionDock();
     this.bindKeyboard();
     this.startTimerIfNeeded();
     this.showTutorialIfNeeded();
@@ -146,6 +153,13 @@ export class GameScene extends BaseScene {
       fontFamily: DISPLAY_FONT, fontSize: '76px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(0.5).setShadow(0, 7, '#131027', 10, true, true).setLetterSpacing(-2);
     this.add.text(755, 42, 'SCORE', { fontFamily: DISPLAY_FONT, fontSize: '18px', fontStyle: 'bold', color: '#b9b4d4' }).setOrigin(0.5).setLetterSpacing(3);
+    this.add.graphics()
+      .fillStyle(0x070611, 0.46).fillRoundedRect(150, 158, 780, 58, 26)
+      .fillGradientStyle(0x3b315c, 0x303859, 0x24495b, 0x332d51, 0.96)
+      .lineStyle(2, 0xffffff, 0.16).fillRoundedRect(150, 154, 780, 56, 26).strokeRoundedRect(150, 154, 780, 56, 26);
+    this.goalText = this.add.text(540, 181, '', {
+      fontFamily: UI_FONT, fontSize: '25px', fontStyle: '900', color: '#eef3ff', align: 'center',
+    }).setOrigin(0.5);
     this.statusPlate = this.add.graphics().setDepth(99).setVisible(false);
     this.statusText = this.add.text(540, STATUS_Y, '', {
       fontFamily: UI_FONT, fontSize: '42px', fontStyle: 'bold', color: '#ffffff',
@@ -186,7 +200,6 @@ export class GameScene extends BaseScene {
       .strokeRoundedRect(BOARD_X - 16, BOARD_Y - 16, BOARD_PIXELS + 32, BOARD_PIXELS + 32, 38);
     this.boardLayer = this.add.container(BOARD_X, BOARD_Y);
     this.obstacleLayer = this.add.container(BOARD_X, BOARD_Y).setDepth(30);
-    this.relicLayer = this.add.container(0, 0).setDepth(70);
   }
 
   private cellPosition(position: Position): { x: number; y: number } {
@@ -408,7 +421,7 @@ export class GameScene extends BaseScene {
       this.bestCombo = Math.max(this.bestCombo, cascade);
       const creationAnimations = step.created.map((created) => this.playSpecialCreated(created.position, created.special));
       await Promise.all([
-        this.playCascade(step.removed, step.score, cascade, originalBoard, cascade === 1 ? swapImpact : undefined, cascade === result.cascades.length),
+        this.playCascade(step.removed, step.score, cascade, step.source, cascade === 1 ? swapImpact : undefined, cascade === result.cascades.length),
         ...creationAnimations,
       ]);
       step.created.forEach((created) => {
@@ -416,14 +429,26 @@ export class GameScene extends BaseScene {
         this.goals.apply({ type: 'special', special });
         achievementSystem.record({ type: 'specialUsed', special });
       });
+      const charge = this.relicCharge.addMatch(step.removed.length, step.created.length, cascade);
+      if (charge.becameReady) this.maybeAwardThunderTotem();
+      else this.refreshActionDock();
+      // A falling board can create the next bingo without another touch.
+      // Rebuild the affected columns before resolving that next chain so the
+      // visuals and hit targets always match the model's actual board state.
+      if (cascade < result.cascades.length) {
+        const changedColumns = new Set(step.removed.map((position) => position.col));
+        this.displayBoardColumns(step.board, changedColumns, true);
+        this.refreshObstacles();
+        if (!saveSystem.getData().settings.reducedMotion) {
+          await new Promise<void>((resolve) => this.time.delayedCall(54, () => resolve()));
+        }
+      }
     }
     this.score += result.score;
     this.goals.apply({ type: 'score', value: this.score, absolute: true });
     achievementSystem.record({ type: 'combo', value: this.bestCombo });
-    const affectedColumns = new Set<number>([from.col, to.col]);
-    result.cascades.forEach((step) => step.removed.forEach((position) => affectedColumns.add(position.col)));
-    this.displayBoardColumns(result.board, affectedColumns, true);
-    this.maybeAwardThunderTotem();
+    // Final full sync also covers special swaps and dead-board reshuffles.
+    this.displayBoard(result.board, false);
     this.refreshObstacles();
     this.refreshHud();
     if (result.reshuffled) this.flashStatus('움직임이 없어 자동으로 섞었어요!');
@@ -746,64 +771,21 @@ export class GameScene extends BaseScene {
   }
 
   private maybeAwardThunderTotem(): void {
-    if (this.thunderTotem.active || this.score < this.thunderTotem.nextScore) return;
+    if (this.thunderTotem.active || !this.relicCharge.ready) return;
     this.thunderTotem.active = true;
-    this.thunderTotem.nextScore += 12000;
-    const root = this.add.container(540, 1284).setDepth(125).setScale(0.72).setAlpha(0);
-    const buttonShadow = this.add.graphics().fillStyle(0x05040d, 0.46).fillRoundedRect(-350, -56, 700, 124, 42);
-    const button = this.add.graphics()
-      .fillGradientStyle(0x2bdfff, 0x6d7dff, 0x7c42ff, 0xff62aa, 1)
-      .lineStyle(4, 0xffffff, 0.62)
-      .fillRoundedRect(-350, -68, 700, 124, 42)
-      .strokeRoundedRect(-350, -68, 700, 124, 42)
-      .fillStyle(0xffffff, 0.18).fillRoundedRect(-316, -45, 632, 7, 4);
-    const glow = this.add.graphics().fillStyle(0x61dfff, 0.25).fillCircle(-236, -6, 54);
-    const art = this.add.graphics();
-    const stone = [
-      new Phaser.Geom.Point(-259, -38), new Phaser.Geom.Point(-239, -52), new Phaser.Geom.Point(-211, -41),
-      new Phaser.Geom.Point(-199, -8), new Phaser.Geom.Point(-214, 42), new Phaser.Geom.Point(-252, 44), new Phaser.Geom.Point(-269, 7),
-    ];
-    art.fillStyle(0x284d70, 1).lineStyle(4, 0xa8efff, 0.96).fillPoints(stone, true).strokePoints(stone, true);
-    art.fillStyle(0x62d9eb, 0.3).fillPoints([
-      new Phaser.Geom.Point(-251, -31), new Phaser.Geom.Point(-239, -42), new Phaser.Geom.Point(-225, -34), new Phaser.Geom.Point(-242, 29),
-    ], true);
-    art.fillStyle(0xffe269, 1).lineStyle(2, 0xffffff, 0.9).fillPoints([
-      new Phaser.Geom.Point(-224, -31), new Phaser.Geom.Point(-245, 1), new Phaser.Geom.Point(-231, 0),
-      new Phaser.Geom.Point(-241, 29), new Phaser.Geom.Point(-213, -8), new Phaser.Geom.Point(-228, -6),
-    ], true).strokePoints([
-      new Phaser.Geom.Point(-224, -31), new Phaser.Geom.Point(-245, 1), new Phaser.Geom.Point(-231, 0),
-      new Phaser.Geom.Point(-241, 29), new Phaser.Geom.Point(-213, -8), new Phaser.Geom.Point(-228, -6),
-    ], true);
-    const label = this.add.text(44, -13, '천둥 토템', {
-      fontFamily: DISPLAY_FONT, fontSize: '48px', fontStyle: 'bold', color: '#ffffff',
-      stroke: '#29345f', strokeThickness: 9,
-    }).setOrigin(0.5).setShadow(0, 6, '#070715', 8, true, true);
-    const sub = this.add.text(44, 35, '눌러서 번개 폭풍 발동', {
-      fontFamily: UI_FONT, fontSize: '25px', fontStyle: 'bold', color: '#e7fbff',
-    }).setOrigin(0.5);
-    const spark = this.add.graphics().lineStyle(3, 0xffffff, 0.9)
-      .lineBetween(-310, -24, -298, -12).lineBetween(286, -28, 305, -44).lineBetween(292, 28, 318, 37);
-    root.add([buttonShadow, button, glow, art, label, sub, spark]);
-    this.relicLayer.add(root);
-    this.thunderTotem.view = root;
-    root.setSize(700, 124).setInteractive({ useHandCursor: true });
-    root.on('pointerover', () => this.tweens.add({ targets: root, scale: 1.04, duration: 100 }));
-    root.on('pointerout', () => this.tweens.add({ targets: root, scale: 1, duration: 100 }));
-    root.on('pointerdown', () => root.setScale(0.96));
-    root.on('pointerup', () => {
-      root.setScale(1);
-      void this.useThunderTotem();
-    });
-    this.tweens.add({ targets: root, scale: 1, alpha: 1, y: 1312, angle: { from: -2, to: 0 }, duration: 520, ease: 'Back.Out' });
-    this.tweens.add({ targets: glow, alpha: { from: 0.25, to: 0.7 }, scale: { from: 0.8, to: 1.25 }, duration: 680, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    this.refreshActionDock();
+    if (this.relicButton && !saveSystem.getData().settings.reducedMotion) {
+      this.tweens.add({ targets: this.relicButton, scale: { from: 1.08, to: 1 }, duration: 420, ease: 'Back.Out' });
+    }
     this.flashStatus('천둥 토템 획득!', true, 1150);
-    this.floatingPool.show(540, 1210, '원할 때 직접 터뜨리세요', { color: '#d9f8ff', stroke: '#244c70', fontSize: 34, duration: 1250, rise: 72 });
+    this.floatingPool.show(360, 1325, 'READY', { color: '#d9f8ff', stroke: '#244c70', fontSize: 38, duration: 1100, rise: 70 });
     audioSystem.playSfx('rainbow');
     hapticSystem.play('rainbow');
   }
 
   private async useThunderTotem(): Promise<void> {
     if (!this.thunderTotem.active || this.locked || this.paused || this.ending || this.tutorialActive) return;
+    if (!this.relicCharge.consume()) return;
     this.locked = true;
     void audioSystem.resumeAndStartMusic('stage');
     const bonus = await this.activateThunderTotem();
@@ -819,13 +801,7 @@ export class GameScene extends BaseScene {
   private async activateThunderTotem(): Promise<number> {
     if (!this.thunderTotem.active) return 0;
     this.thunderTotem.active = false;
-    const relicView = this.thunderTotem.view;
-    this.thunderTotem.view = undefined;
-    if (relicView) {
-      this.tweens.killTweensOf(relicView);
-      relicView.disableInteractive();
-      this.tweens.add({ targets: relicView, scale: 1.24, alpha: 0, y: 1220, duration: 210, ease: 'Cubic.In', onComplete: () => relicView.destroy() });
-    }
+    this.refreshActionDock();
 
     const board = this.model.board;
     const candidates: Position[] = [];
@@ -834,8 +810,27 @@ export class GameScene extends BaseScene {
     }));
     if (candidates.length === 0) return 0;
     const random = new SeededRandom(`${this.stage.seed}-thunder-${this.score}-${this.secondsElapsed}`);
-    const targetCount = Math.min(candidates.length, 17 + Math.floor(this.stageId / 3));
-    const targets = random.shuffle(candidates).slice(0, targetCount);
+    const targetKinds = new Set(this.goals.progress.flatMap((progress) => {
+      const goal = progress.goal;
+      if (progress.complete || goal.type !== 'collect') return [];
+      const kind = CHARACTERS.findIndex((character) => character.id === goal.characterId);
+      return kind >= 0 ? [kind] : [];
+    }));
+    const kindCounts = new Map<number, number>();
+    candidates.forEach((position) => {
+      const kind = board[position.row]?.[position.col]?.kind;
+      if (kind !== null && kind !== undefined) kindCounts.set(kind, (kindCounts.get(kind) ?? 0) + 1);
+    });
+    const dominantKind = [...kindCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const priority = (position: Position): number => {
+      const kind = board[position.row]?.[position.col]?.kind;
+      const goalBonus = kind !== null && kind !== undefined && targetKinds.has(kind) ? 100 : 0;
+      const obstacleBonus = this.obstacles.some((obstacle) => obstacle.hp > 0 && Math.abs(obstacle.row - position.row) + Math.abs(obstacle.col - position.col) <= 1) ? 60 : 0;
+      const groupBonus = kind === dominantKind ? 20 : 0;
+      return goalBonus + obstacleBonus + groupBonus;
+    };
+    const targetCount = Math.min(candidates.length, 15 + Math.floor(this.stageId / 4));
+    const targets = random.shuffle(candidates).sort((a, b) => priority(b) - priority(a)).slice(0, targetCount);
     const impactArea = [...new Map(targets.flatMap((position) => [
       position,
       { row: position.row - 1, col: position.col },
@@ -847,6 +842,8 @@ export class GameScene extends BaseScene {
     await new Promise<void>((resolve) => this.time.delayedCall(120, resolve));
     this.createThunderStormScene(targets);
     targets.forEach((position, index) => {
+      const kind = board[position.row]?.[position.col]?.kind;
+      if (kind !== null && kind !== undefined) this.goals.apply({ type: 'collect', characterId: CHARACTERS[kind]?.id ?? 'momo' });
       this.time.delayedCall(120 + index * 22, () => {
         const point = this.cellPosition(position);
         const x = BOARD_X + point.x;
@@ -868,7 +865,7 @@ export class GameScene extends BaseScene {
     if (saveSystem.getData().settings.screenShake) this.cameras.main.shake(360, 0.012);
     await new Promise<void>((resolve) => this.time.delayedCall(850, resolve));
     this.model.removePositions(targets);
-    return 2200 + targets.length * 140;
+    return 700 + targets.length * 90;
   }
 
   private createThunderStormScene(targets: readonly Position[]): void {
@@ -1017,11 +1014,24 @@ export class GameScene extends BaseScene {
     this.refreshObstacles();
   }
 
-  private createShuffleButton(): void {
-    const y = BOARD_Y + BOARD_PIXELS + 284;
-    this.shuffleButton = this.addButton(540, y, '셔플 2회', () => this.useShuffle(), {
-      width: 840, height: 136, color: 0x20d0ad, color2: 0x2f7ff0, fontSize: 50,
+  private createActionDock(): void {
+    const y = BOARD_Y + BOARD_PIXELS + 166;
+    this.add.graphics()
+      .fillStyle(0x05040d, 0.38).fillRoundedRect(28, y - 80, 1024, 178, 48)
+      .fillGradientStyle(0x272943, 0x2c2b4a, 0x173f54, 0x28334d, 0.96)
+      .lineStyle(3, 0xffffff, 0.13).fillRoundedRect(28, y - 88, 1024, 172, 48).strokeRoundedRect(28, y - 88, 1024, 172, 48);
+    this.relicButton = this.addButton(354, y, '천둥 토템 · 0%', () => {
+      if (this.relicCharge.ready) void this.useThunderTotem();
+      else if (this.relicCharge.exhausted) this.flashStatus('이번 레벨의 토템을 사용했어요');
+      else this.flashStatus(`천둥 에너지 ${this.relicCharge.charge}%`);
+    }, {
+      width: 610, height: 126, color: 0x554a90, color2: 0x2f557d, fontSize: 37,
     });
+    this.shuffleButton = this.addButton(850, y, '셔플 · 2회', () => this.useShuffle(), {
+      width: 340, height: 126, color: 0x20c8a6, color2: 0x287bd3, fontSize: 36,
+    });
+    this.relicChargeBar = this.add.graphics().setDepth(2);
+    this.refreshActionDock();
   }
 
   private useShuffle(): void {
@@ -1038,8 +1048,22 @@ export class GameScene extends BaseScene {
     const button = this.shuffleButton;
     const label = button?.getData('label') as Phaser.GameObjects.Text | undefined;
     if (!button || !label) return;
-    label.setText(this.shufflesLeft > 0 ? `셔플 ${this.shufflesLeft}회` : '셔플 완료');
+    label.setText(this.shufflesLeft > 0 ? `셔플 · ${this.shufflesLeft}회` : '셔플 완료');
     if (this.shufflesLeft <= 0) button.disableInteractive().setAlpha(0.48);
+  }
+
+  private refreshActionDock(): void {
+    const button = this.relicButton;
+    const label = button?.getData('label') as Phaser.GameObjects.Text | undefined;
+    if (!button || !label) return;
+    const ready = this.relicCharge.ready;
+    const exhausted = this.relicCharge.exhausted;
+    label.setText(exhausted ? '천둥 토템 · 사용 완료' : ready ? '천둥 폭풍 · READY' : `천둥 토템 · ${this.relicCharge.charge}%`);
+    button.setAlpha(exhausted ? 0.52 : ready ? 1 : 0.84);
+    this.relicChargeBar?.clear()
+      .fillStyle(0x090817, 0.54).fillRoundedRect(106, 1417, 496, 12, 6)
+      .fillGradientStyle(0x5cecff, 0x8ea4ff, 0xffd967, 0xff7ead, 1)
+      .fillRoundedRect(106, 1417, Math.max(8, 496 * this.relicCharge.charge / 100), 12, 6);
   }
 
   private bindKeyboard(): void {
@@ -1110,6 +1134,15 @@ export class GameScene extends BaseScene {
       .fillStyle(0xffffff, 0.12).fillRoundedRect(154, 122, 222, 9, 5)
       .fillStyle(barColor, 1).fillRoundedRect(154, 122, Math.max(5, 222 * ratio), 9, 5);
     this.timeText.setColor(safeSeconds <= 10 ? '#ff6687' : safeSeconds <= 30 ? '#ffc65f' : '#ffffff');
+    this.goalText.setText(this.goals.progress.slice(0, 2).map((item) => {
+      const value = `${item.current}/${item.target}`;
+      if (item.goal.type === 'score') return `점수 ${value}`;
+      if (item.goal.type === 'collect') return `친구 ${value}`;
+      if (item.goal.type === 'special') return `매치 파워 ${value}`;
+      if (item.goal.type === 'starDrop') return `별 조각 ${value}`;
+      return `봉인 ${value}`;
+    }).join('   ·   '));
+    this.refreshActionDock();
   }
 
   private formatTime(seconds: number): string {
@@ -1124,7 +1157,10 @@ export class GameScene extends BaseScene {
   ): void {
     if (this.timeAwardedThisMove) return;
     this.timeAwardedThisMove = true;
-    const baseBonus = impact === 'rainbow' || impact === 'bomb' ? 3 : impact === 'rocket' || impact === 'match4' ? 2 : 1;
+    // Ordinary 3-matches keep the clock tense; planned power matches earn a
+    // small recovery without letting the timer refill forever.
+    const baseBonus = impact === 'rainbow' || impact === 'bomb' ? 2 : impact === 'rocket' || impact === 'match4' ? 1 : 0;
+    if (baseBonus <= 0) return;
     const bonus = this.mode === 'endless' && this.endlessLevel >= 6 ? Math.max(1, baseBonus - 1) : baseBonus;
     const cap = this.stage.timeLimit ?? 0;
     const before = this.secondsLeft;
@@ -1154,8 +1190,7 @@ export class GameScene extends BaseScene {
     this.locked = true;
     if (this.countdownEvent) this.countdownEvent.paused = true;
     const isEndless = this.mode === 'endless';
-    const scoreStars = getStarsForScore(this.stage, this.score);
-    const stars: 0 | 1 | 2 | 3 = success ? (Math.max(1, scoreStars) as 1 | 2 | 3) : 0;
+    const stars = getStarsForPerformance(this.stage, this.score, this.secondsLeft, this.bestCombo, success);
     audioSystem.playSfx(success ? 'success' : 'failure');
     if (!success) hapticSystem.play('failure');
     if (isEndless) {
@@ -1168,7 +1203,7 @@ export class GameScene extends BaseScene {
     this.time.delayedCall(500, () => this.fadeTo('ResultScene', {
       stageId: this.stageId, mode: this.mode, score: this.score, stars, bestCombo: this.bestCombo, success,
       survivedSeconds: this.secondsElapsed,
-      remaining: this.stage.timeLimit ?? 0, reward: success ? stars + 1 : 0,
+      remaining: Math.max(0, this.secondsLeft), reward: success ? stars + 1 : 0,
       starThresholds: this.stage.starThresholds,
     }));
   }

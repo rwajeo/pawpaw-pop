@@ -61,7 +61,7 @@ const clearCells = (board: Board, cells: readonly Position[]): Board => {
 
 interface CascadeOutcome {
   readonly board: Board;
-  readonly step: CascadeStep;
+  readonly step: Omit<CascadeStep, 'board'>;
 }
 
 const resolveMatchStep = (
@@ -77,6 +77,7 @@ const resolveMatchStep = (
     board: clearCells(specials.board, effects.removed),
     step: {
       index: cascadeIndex,
+      source: cloneBoard(board),
       matches,
       removed: effects.removed,
       created: specials.created,
@@ -107,24 +108,27 @@ export const resolveSwap = (
   const first = board[from.row]?.[from.col];
   const second = board[to.row]?.[to.col];
   if (first?.special || second?.special) {
+    const specialSource = cloneBoard(board);
     const specialResult = resolveSpecialSwap(board, from, to);
     board = clearCells(specialResult.board, specialResult.removed);
+    board = collapseAndRefill(board, generator);
     cascades.push({
       index: 1,
+      source: specialSource,
+      board: cloneBoard(board),
       matches: EMPTY_MATCH,
       removed: specialResult.removed,
       created: [],
       score: specialResult.removed.length * 100,
     });
-    board = collapseAndRefill(board, generator);
   }
 
   let matches = detectMatches(board);
   let cascadeIndex = cascades.length + 1;
   while (matches.groups.length > 0 && cascadeIndex <= MAX_CASCADES) {
     const outcome = resolveMatchStep(board, matches, cascadeIndex, cascadeIndex === 1 ? [to, from] : []);
-    cascades.push(outcome.step);
     board = collapseAndRefill(outcome.board, generator);
+    cascades.push({ ...outcome.step, board: cloneBoard(board) });
     matches = detectMatches(board);
     cascadeIndex += 1;
   }
